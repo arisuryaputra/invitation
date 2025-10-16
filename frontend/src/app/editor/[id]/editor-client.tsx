@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   DndContext,
   closestCenter,
@@ -12,6 +11,7 @@ import {
   DragStartEvent,
   DragOverlay,
   DragOverEvent,
+  useDroppable,
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -26,7 +26,6 @@ import { saveInvitation } from '@/services/invitation.service';
 import type { Invitation, Component } from '@/services/invitation.service';
 
 // --- Constants defined outside the component to prevent re-creation on render ---
-
 const generateUniqueId = () => `comp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
 const getFutureDate = () => {
@@ -43,8 +42,16 @@ const AVAILABLE_COMPONENTS = [
   { id: 'music_player', name: 'Music Player', defaultProps: { songUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' } },
 ];
 
-// --- Component ---
+function DroppableCanvas({ children }: { children: React.ReactNode }) {
+    const { setNodeRef } = useDroppable({ id: 'canvas' });
+    return (
+        <div ref={setNodeRef} className="min-h-[400px] space-y-4" id="canvas">
+            {children}
+        </div>
+    );
+}
 
+// --- Component ---
 export default function EditorClientPage({ initialData, invitationId }: { initialData: Invitation, invitationId: string }) {
   const [components, setComponents] = useState<Component[]>(initialData.components);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -60,37 +67,51 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
 
   const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
-    if (!over || active.id === over.id || !active.data.current?.isPaletteItem) {
-      return;
-    }
+    if (!over || !active.data.current?.isPaletteItem) return;
 
-    const isOverCanvas = over.id === 'canvas-droppable-area';
+    const isOverCanvas = over.id === 'canvas';
     const isOverSortableItem = over.data.current?.isSortableItem;
 
-    // If dragging a new item over the canvas, show a placeholder
-    if (isPaletteItem && (isOverCanvas || isOverSortableItem)) {
-      const overIndex = components.findIndex(c => c.id === over.id);
+    if (isOverCanvas || isOverSortableItem) {
+        const overIndex = components.findIndex(c => c.id === over.id);
+        const isPlaceholderPresent = components.some(c => c.id === 'placeholder');
 
-      // If not already showing a placeholder, add one
-      if (!components.some(c => c.id === 'placeholder')) {
-        const newComponents = [...components];
-        const placeholder = { id: 'placeholder', type: 'placeholder', props: {} };
-        if (overIndex !== -1) {
-            newComponents.splice(overIndex, 0, placeholder);
+        if (!isPlaceholderPresent) {
+            const placeholder: Component = { id: 'placeholder', type: 'placeholder', props: {} };
+            let newComponents = [...components];
+            if (overIndex !== -1) {
+                newComponents.splice(overIndex, 0, placeholder);
+            } else {
+                newComponents.push(placeholder);
+            }
+            setComponents(newComponents);
         } else {
-            newComponents.push(placeholder);
+            const placeholderIndex = components.findIndex(c => c.id === 'placeholder');
+            if (placeholderIndex !== overIndex) {
+                 setComponents(current => {
+                    const newItems = current.filter(c => c.id !== 'placeholder');
+                    const newOverIndex = newItems.findIndex(c => c.id === over.id);
+                    if(newOverIndex !== -1) {
+                        newItems.splice(newOverIndex, 0, { id: 'placeholder', type: 'placeholder', props: {} });
+                        return newItems;
+                    } else {
+                        // if overIndex is -1, it means we are over the canvas, not an item
+                        newItems.push({ id: 'placeholder', type: 'placeholder', props: {} });
+                        return newItems;
+                    }
+                 });
+            }
         }
-        setComponents(newComponents);
-      }
     }
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
-    setActiveId(null);
-    // Remove any placeholders
-    setComponents(current => current.filter(c => c.id !== 'placeholder'));
-
     const { active, over } = event;
+
+    // Remove placeholder on drag end
+    setComponents(current => current.filter(c => c.id !== 'placeholder'));
+    setActiveId(null);
+
     if (!over) return;
 
     const isPaletteItem = active.data.current?.isPaletteItem;
@@ -102,10 +123,11 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
       const newComponent: Component = {
         id: generateUniqueId(),
         type: paletteComponent.id,
-        props: paletteComponent.defaultProps || {},
+        props: { ...paletteComponent.defaultProps },
       };
 
       setComponents(current => {
+        // We need to find the index where the placeholder *was*
         const overIndex = current.findIndex(c => c.id === over.id);
         if (overIndex !== -1) {
           const newItems = [...current];
@@ -158,7 +180,7 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
     linkElement.click();
   };
 
-  const activePaletteItem = activeId ? AVAILABLE_COMPONENTS.find(c => c.id === activeId) : null;
+  const activeItem = activeId ? components.find(c => c.id === activeId) || AVAILABLE_COMPONENTS.find(c => c.id === activeId) : null;
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd} collisionDetection={closestCenter}>
@@ -183,24 +205,24 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
           </div>
 
           <div className="max-w-3xl mx-auto bg-white p-4 rounded-lg shadow-lg">
-            <SortableContext items={components.map(c => c.id)} strategy={verticalListSortingStrategy}>
-              <div className="min-h-[400px] space-y-4" id="canvas">
-                {components.map(component => (
-                  <SortableItem
-                    key={component.id}
-                    id={component.id}
-                    componentData={component}
-                    onRemove={handleRemoveComponent}
-                    onEdit={handleEditComponent}
-                  />
-                ))}
-                {components.filter(c => c.type !== 'music_player').length === 0 && (
-                   <div className="text-center py-20 border-2 border-dashed rounded-lg flex items-center justify-center">
-                      <p className="text-muted-foreground">Drag components from the left panel and drop them here.</p>
-                   </div>
-                )}
-              </div>
-            </SortableContext>
+            <DroppableCanvas>
+              <SortableContext items={components.map(c => c.id)} strategy={verticalListSortingStrategy}>
+                  {components.map(component => (
+                    <SortableItem
+                      key={component.id}
+                      id={component.id}
+                      componentData={component}
+                      onRemove={handleRemoveComponent}
+                      onEdit={handleEditComponent}
+                    />
+                  ))}
+                  {components.filter(c => c.type !== 'music_player' && c.type !== 'placeholder').length === 0 && (
+                     <div className="text-center py-20 border-2 border-dashed rounded-lg flex items-center justify-center">
+                        <p className="text-muted-foreground">Drag components from the left panel and drop them here.</p>
+                     </div>
+                  )}
+              </SortableContext>
+            </DroppableCanvas>
           </div>
         </main>
       </div>
@@ -213,12 +235,14 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
       />
 
       <DragOverlay>
-        {activeId && activePaletteItem ? (
-          <div className="p-2 border rounded-md bg-white shadow-lg cursor-grabbing">
-            {activePaletteItem.name}
-          </div>
-        ) : activeId ? (
-          <SortableItem id={activeId} componentData={components.find(c => c.id === activeId)} onRemove={() => {}} onEdit={() => {}} />
+        {activeId && activeItem ? (
+          activeItem.type ? (
+            <SortableItem id={activeId} componentData={activeItem} onRemove={() => {}} onEdit={() => {}} />
+          ) : (
+            <div className="p-2 border rounded-md bg-white shadow-lg cursor-grabbing">
+              {activeItem.name}
+            </div>
+          )
         ) : null}
       </DragOverlay>
     </DndContext>

@@ -42,6 +42,7 @@ export function SortableItem({ id, componentData, onRemove, onEdit }: SortableIt
     id,
     data: {
       isSortableItem: true, // Mark this as a sortable item
+      type: componentData.type,
     }
   });
 
@@ -64,19 +65,20 @@ export function SortableItem({ id, componentData, onRemove, onEdit }: SortableIt
 
   return (
     <div ref={setNodeRef} style={style} className="relative group mb-4">
-      <div className="absolute top-2 right-2 z-10 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/50 backdrop-blur-sm rounded-md">
+      <div className="absolute top-2 right-2 z-10 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/50 backdrop-blur-sm rounded-md p-1">
         <Button
           variant="ghost"
           size="icon"
-          className="cursor-pointer"
+          className="cursor-pointer h-6 w-6"
           onClick={() => onEdit(id)}
+          aria-label="Edit component"
         >
           <Settings className="h-4 w-4" />
         </Button>
         <Button
           variant="ghost"
           size="icon"
-          className="cursor-pointer"
+          className="cursor-pointer h-6 w-6"
           onClick={() => onRemove(id)}
           aria-label="Delete component"
         >
@@ -87,12 +89,12 @@ export function SortableItem({ id, componentData, onRemove, onEdit }: SortableIt
           size="icon"
           {...attributes}
           {...listeners}
-          className="cursor-grab touch-none"
+          className="cursor-grab touch-none h-6 w-6"
         >
           <GripVertical className="h-4 w-4" />
         </Button>
       </div>
-      <div className="border rounded-lg p-4 bg-gray-50">
+      <div className="border rounded-lg p-4 bg-gray-50 pointer-events-none">
         {Component ? <Component {...componentData.props} /> : <div>Unknown Component</div>}
       </div>
     </div>
