@@ -11,6 +11,7 @@ import {
   DragEndEvent,
   DragStartEvent,
   DragOverlay,
+  useDroppable,
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -73,14 +74,22 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
         props: paletteComponent.defaultProps || {},
       };
 
-      const overIndex = components.findIndex(c => c.id === over.id);
-
-      if (overIndex !== -1) {
-        setComponents(current => [...current.slice(0, overIndex), newComponent, ...current.slice(overIndex)]);
-      } else {
+      // Check if dropping on the canvas itself, especially when it's empty
+      if (over.id === 'canvas-drop-area') {
         setComponents(current => [...current, newComponent]);
+      } else {
+        // Find the index of the item we're dropping over
+        const overIndex = components.findIndex(c => c.id === over.id);
+        if (overIndex !== -1) {
+          setComponents(current => [...current.slice(0, overIndex), newComponent, ...current.slice(overIndex)]);
+        } else {
+          // Fallback for when over.id is not in components, but it's not the canvas either
+          // This might happen if dropping on a SortableItem that is being removed
+          setComponents(current => [...current, newComponent]);
+        }
       }
     } else {
+      // Reordering existing components
       if (active.id !== over.id) {
         setComponents((items) => {
           const oldIndex = items.findIndex((item) => item.id === active.id);
@@ -157,24 +166,26 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
           </div>
 
           <div className="max-w-3xl mx-auto bg-white p-4 rounded-lg shadow-lg">
-            <SortableContext items={components.map(c => c.id)} strategy={verticalListSortingStrategy}>
-              <div className="min-h-[400px]" id="canvas">
-                {components.map(component => (
-                  <SortableItem
-                    key={component.id}
-                    id={component.id}
-                    componentData={component}
-                    onRemove={handleRemoveComponent}
-                    onEdit={handleEditComponent}
-                  />
-                ))}
-                {components.filter(c => c.type !== 'music_player').length === 0 && (
-                   <div className="text-center py-20 border-2 border-dashed rounded-lg flex items-center justify-center">
-                      <p className="text-muted-foreground">Drag components from the left panel and drop them here.</p>
-                   </div>
-                )}
-              </div>
-            </SortableContext>
+            <DroppableCanvas>
+              <SortableContext items={components.map(c => c.id)} strategy={verticalListSortingStrategy}>
+                  <div className="min-h-[400px]" id="canvas-inner">
+                      {components.map(component => (
+                          <SortableItem
+                              key={component.id}
+                              id={component.id}
+                              componentData={component}
+                              onRemove={handleRemoveComponent}
+                              onEdit={handleEditComponent}
+                          />
+                      ))}
+                      {components.filter(c => c.type !== 'music_player').length === 0 && (
+                          <div className="text-center py-20 border-2 border-dashed rounded-lg flex items-center justify-center">
+                              <p className="text-muted-foreground">Drag components from the left panel and drop them here.</p>
+                          </div>
+                      )}
+                  </div>
+              </SortableContext>
+            </DroppableCanvas>
           </div>
         </main>
 
@@ -201,5 +212,17 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
           null}
       </DragOverlay>
     </DndContext>
+  );
+}
+
+function DroppableCanvas({ children }: { children: React.ReactNode }) {
+  const { setNodeRef } = useDroppable({
+    id: 'canvas-drop-area',
+  });
+
+  return (
+    <div ref={setNodeRef} className="w-full h-full">
+      {children}
+    </div>
   );
 }
