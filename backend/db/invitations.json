@@ -1,0 +1,78 @@
+[
+  {
+    "id": "inv-51261420-7f2c-44c0-bc91-c324572235ed",
+    "templateId": "tmpl-wedding-classic",
+    "createdAt": "2025-10-16T09:03:37.869Z",
+    "components": [
+      {
+        "type": "guest_book",
+        "props": {},
+        "id": "comp-886260c3-7649-4267-96fc-05c668d12369"
+      },
+      {
+        "type": "countdown",
+        "props": {
+          "title": "Countdown to Our Wedding"
+        },
+        "id": "comp-3b69f16b-7ec6-41e0-8726-775d8bfb1600"
+      },
+      {
+        "type": "gift_registry",
+        "props": {},
+        "id": "comp-e88bbdb8-c7ea-4de6-89fd-944229a25c0f"
+      },
+      {
+        "type": "image_gallery",
+        "props": {
+          "images": []
+        },
+        "id": "comp-1b8305f4-2bb0-4c7d-9467-521bae49b68d"
+      },
+      {
+        "type": "music_player",
+        "props": {
+          "songUrl": ""
+        },
+        "id": "comp-15ba2c2e-2610-4444-9421-9c8118b4cc6e"
+      }
+    ]
+  },
+  {
+    "id": "inv-8dfe5f56-9830-471a-8e46-095e9b501c96",
+    "templateId": "tmpl-wedding-classic",
+    "createdAt": "2025-10-16T09:23:12.232Z",
+    "components": [
+      {
+        "type": "countdown",
+        "props": {
+          "title": "Countdown to Our Wedding"
+        },
+        "id": "comp-e8b10a88-c715-4834-add8-55f3c47f1966"
+      },
+      {
+        "type": "guest_book",
+        "props": {},
+        "id": "comp-82eda7a3-0073-43ea-8ca5-0c943cd84ce1"
+      },
+      {
+        "type": "gift_registry",
+        "props": {},
+        "id": "comp-78310022-de30-47c8-a5c3-d0fc3d898b5d"
+      },
+      {
+        "type": "image_gallery",
+        "props": {
+          "images": []
+        },
+        "id": "comp-11c8042c-26bd-4074-bf4f-75a4a55bf849"
+      },
+      {
+        "type": "music_player",
+        "props": {
+          "songUrl": ""
+        },
+        "id": "comp-a45db084-d899-4c29-a19d-22c8cee12ff7"
+      }
+    ]
+  }
+]
