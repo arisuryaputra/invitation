@@ -9,52 +9,57 @@ interface CountdownProps {
 }
 
 const Countdown: React.FC<CountdownProps> = ({ targetDate, title }) => {
-  const futureDate = new Date();
-  futureDate.setDate(futureDate.getDate() + 30); // Default to 30 days from now
-
-  const effectiveTargetDate = targetDate || futureDate.toISOString();
-
-  const calculateTimeLeft = () => {
-    const difference = +new Date(effectiveTargetDate) - +new Date();
-    let timeLeft: { [key: string]: number } = {};
-
-    if (difference > 0) {
-      timeLeft = {
-        days: Math.floor(difference / (1000 * 60 * 60 * 24)),
-        hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
-        minutes: Math.floor((difference / 1000 / 60) % 60),
-        seconds: Math.floor((difference / 1000) % 60),
-      };
-    }
-
-    return timeLeft;
-  };
-
-  const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
+  const [isMounted, setIsMounted] = useState(false);
+  const [timeLeft, setTimeLeft] = useState<{ [key: string]: number }>({});
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isMounted || !targetDate) return;
+
+    const calculateTimeLeft = () => {
+      const difference = +new Date(targetDate) - +new Date();
+      let newTimeLeft: { [key: string]: number } = {};
+
+      if (difference > 0) {
+        newTimeLeft = {
+          days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+          hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
+          minutes: Math.floor((difference / 1000 / 60) % 60),
+          seconds: Math.floor((difference / 1000) % 60),
+        };
+      }
+      return newTimeLeft;
+    };
+
+    setTimeLeft(calculateTimeLeft());
+
+    const timer = setInterval(() => {
       setTimeLeft(calculateTimeLeft());
     }, 1000);
 
-    return () => clearTimeout(timer);
-  });
+    return () => clearInterval(timer);
+  }, [isMounted, targetDate]);
 
-  const timerComponents: React.ReactNode[] = [];
-
-  Object.keys(timeLeft).forEach((interval) => {
-    if (timeLeft[interval] === undefined) {
-      return;
+  const renderTimerComponents = () => {
+    if (!isMounted || !targetDate) {
+      // Render a static placeholder on the server and initial client render
+      return <div className="text-2xl">Loading...</div>;
     }
-    timerComponents.push(
+
+    const timerComponents: React.ReactNode[] = Object.keys(timeLeft).map((interval) => (
       <div key={interval} className="text-center">
         <div className="text-4xl font-bold text-primary">
           {String(timeLeft[interval]).padStart(2, '0')}
         </div>
         <div className="text-sm uppercase text-muted-foreground">{interval}</div>
       </div>
-    );
-  });
+    ));
+
+    return timerComponents.length ? timerComponents : <div className="text-2xl">Time's up!</div>;
+  };
 
   return (
     <Card className="w-full max-w-md mx-auto">
@@ -63,7 +68,7 @@ const Countdown: React.FC<CountdownProps> = ({ targetDate, title }) => {
       </CardHeader>
       <CardContent>
         <div className="flex justify-center space-x-4 md:space-x-8">
-          {timerComponents.length ? timerComponents : <div className="text-2xl">Time's up!</div>}
+          {renderTimerComponents()}
         </div>
       </CardContent>
     </Card>
