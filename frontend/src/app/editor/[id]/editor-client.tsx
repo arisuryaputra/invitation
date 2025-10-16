@@ -1,19 +1,17 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   DndContext,
+  closestCenter,
   PointerSensor,
   useSensor,
   useSensors,
   DragEndEvent,
   DragStartEvent,
-  DragOverEvent,
   DragOverlay,
-  useDroppable,
-  rectIntersection,
-  pointerWithin,
+  DragOverEvent,
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -24,29 +22,36 @@ import { Button } from '@/components/ui/button';
 import { SortableItem } from '@/components/editor/SortableItem';
 import { PaletteItem } from '@/components/editor/PaletteItem';
 import { PropertiesPanel } from '@/components/editor/PropertiesPanel';
+import { saveInvitation } from '@/services/invitation.service';
+import type { Invitation, Component } from '@/services/invitation.service';
 
-// Helper to generate unique IDs in the browser
+// --- Constants defined outside the component to prevent re-creation on render ---
+
 const generateUniqueId = () => `comp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
-const availableComponents = [
-  { id: 'countdown', name: 'Countdown', defaultProps: { title: 'Countdown to Our Big Day!' } },
+const getFutureDate = () => {
+  const date = new Date();
+  date.setDate(date.getDate() + 30);
+  return date.toISOString();
+};
+
+const AVAILABLE_COMPONENTS = [
+  { id: 'countdown', name: 'Countdown', defaultProps: { title: 'Countdown to Our Big Day!', targetDate: getFutureDate() } },
   { id: 'guest_book', name: 'Guest Book', defaultProps: {} },
   { id: 'gift_registry', name: 'Gift Registry', defaultProps: {} },
   { id: 'image_gallery', name: 'Image Gallery', defaultProps: { images: [] } },
   { id: 'music_player', name: 'Music Player', defaultProps: { songUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' } },
 ];
 
-export default function EditorClientPage({ initialData, invitationId }: { initialData: any, invitationId: string }) {
-  const [components, setComponents] = useState<any[]>(initialData?.components || []);
+// --- Component ---
+
+export default function EditorClientPage({ initialData, invitationId }: { initialData: Invitation, invitationId: string }) {
+  const [components, setComponents] = useState<Component[]>(initialData.components);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [editingComponent, setEditingComponent] = useState<any | null>(null);
-  const router = useRouter();
-  const lastOverId = useRef<string | null>(null);
+  const [editingComponent, setEditingComponent] = useState<Component | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, {
-    activationConstraint: {
-      distance: 10,
-    },
+    activationConstraint: { distance: 10 },
   }));
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -55,66 +60,70 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
 
   const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
-    if (!over || !active.data.current?.isPaletteItem || over.id === lastOverId.current) {
-        return;
+    if (!over || active.id === over.id || !active.data.current?.isPaletteItem) {
+      return;
     }
-    lastOverId.current = over.id as string;
 
-    const overId = over.id as string;
-    const isDroppingOnCanvas = overId === 'canvas-drop-area';
-    const isDroppingOnDropZone = overId.includes('-top') || overId.includes('-bottom');
+    const isOverCanvas = over.id === 'canvas-droppable-area';
+    const isOverSortableItem = over.data.current?.isSortableItem;
 
-    const placeholderId = `placeholder-${active.id}`;
-    const placeholder = { id: placeholderId, type: 'placeholder', props: { height: '60px' } };
+    // If dragging a new item over the canvas, show a placeholder
+    if (isPaletteItem && (isOverCanvas || isOverSortableItem)) {
+      const overIndex = components.findIndex(c => c.id === over.id);
 
-    let newComponents = components.filter(c => c.type !== 'placeholder');
-
-    if (isDroppingOnCanvas) {
-        newComponents.push(placeholder);
-    } else if (isDroppingOnDropZone) {
-        const parentId = overId.split('-')[0];
-        const overIndex = newComponents.findIndex(c => c.id === parentId);
+      // If not already showing a placeholder, add one
+      if (!components.some(c => c.id === 'placeholder')) {
+        const newComponents = [...components];
+        const placeholder = { id: 'placeholder', type: 'placeholder', props: {} };
         if (overIndex !== -1) {
-            const insertIndex = overId.endsWith('-top') ? overIndex : overIndex + 1;
-            newComponents.splice(insertIndex, 0, placeholder);
+            newComponents.splice(overIndex, 0, placeholder);
+        } else {
+            newComponents.push(placeholder);
         }
+        setComponents(newComponents);
+      }
     }
-    setComponents(newComponents);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
-    const { active } = event;
     setActiveId(null);
-    lastOverId.current = null;
+    // Remove any placeholders
+    setComponents(current => current.filter(c => c.id !== 'placeholder'));
 
-    const placeholderIndex = components.findIndex(c => c.type === 'placeholder');
+    const { active, over } = event;
+    if (!over) return;
 
-    if (placeholderIndex === -1) {
-        setComponents(current => current.filter(c => c.type !== 'placeholder'));
-        return;
-    }
+    const isPaletteItem = active.data.current?.isPaletteItem;
 
-    const paletteComponent = availableComponents.find(c => c.id === active.id);
-    if (!paletteComponent) return;
+    if (isPaletteItem) {
+      const paletteComponent = AVAILABLE_COMPONENTS.find(c => c.id === active.id);
+      if (!paletteComponent) return;
 
-    const newComponentProps = { ...paletteComponent.defaultProps };
-    if (paletteComponent.id === 'countdown') {
-        const futureDate = new Date();
-        futureDate.setDate(futureDate.getDate() + 30);
-        newComponentProps.targetDate = futureDate.toISOString();
-    }
-
-    const newComponent = {
+      const newComponent: Component = {
         id: generateUniqueId(),
         type: paletteComponent.id,
-        props: newComponentProps,
-    };
+        props: paletteComponent.defaultProps || {},
+      };
 
-    setComponents(current => {
-        const newComponents = [...current];
-        newComponents.splice(placeholderIndex, 1, newComponent);
-        return newComponents;
-    });
+      setComponents(current => {
+        const overIndex = current.findIndex(c => c.id === over.id);
+        if (overIndex !== -1) {
+          const newItems = [...current];
+          newItems.splice(overIndex, 0, newComponent);
+          return newItems;
+        }
+        return [...current, newComponent]; // Add to end if dropped on main canvas area
+      });
+    } else {
+      // Reorder existing components
+      if (active.id !== over.id) {
+        setComponents((items) => {
+          const oldIndex = items.findIndex((item) => item.id === active.id);
+          const newIndex = items.findIndex((item) => item.id === over.id);
+          return arrayMove(items, oldIndex, newIndex);
+        });
+      }
+    }
   };
 
   const handleRemoveComponent = (idToRemove: string) => {
@@ -123,65 +132,40 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
 
   const handleEditComponent = (idToEdit: string) => {
     const component = components.find(c => c.id === idToEdit);
-    setEditingComponent(component);
+    if (component) setEditingComponent(component);
   };
 
   const handleUpdateComponent = (updatedProps: any) => {
-    setComponents(items => items.map(item => {
-        if (item.id === editingComponent.id) {
-            return { ...item, props: updatedProps };
-        }
-        return item;
-    }));
+    if (!editingComponent) return;
+    setComponents(items => items.map(item =>
+      item.id === editingComponent.id ? { ...item, props: updatedProps } : item
+    ));
     setEditingComponent(null);
   };
 
-  const handleSave = () => {
-    fetch(`http://localhost:3001/api/invitations/${invitationId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ components }),
-    })
-    .then(res => res.json())
-    .then(() => alert('Layout saved!'))
-    .catch(err => {
-        console.error("Failed to save layout", err);
-        alert('Error saving layout.');
-    });
+  const handleSave = async () => {
+    const result = await saveInvitation(invitationId, components);
+    if (result) alert('Layout saved!');
+    else alert('Error saving layout.');
   };
 
   const handleExport = () => {
     const dataStr = JSON.stringify({ components }, null, 2);
     const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-
     const linkElement = document.createElement('a');
     linkElement.setAttribute('href', dataUri);
     linkElement.setAttribute('download', `invitation-${invitationId}.json`);
     linkElement.click();
   };
 
-  const handleDragCancel = () => {
-    // If drag is cancelled, remove any placeholder
-    setComponents(current => current.filter(c => c.type !== 'placeholder'));
-    setActiveId(null);
-  };
-
-  const collisionDetectionStrategy = (args: any) => {
-    // First, check for pointer collisions
-    const pointerCollisions = pointerWithin(args);
-    if (pointerCollisions.length > 0) {
-      return pointerCollisions;
-    }
-    // If no pointer collisions, fall back to rectangle intersection
-    return rectIntersection(args);
-  };
+  const activePaletteItem = activeId ? AVAILABLE_COMPONENTS.find(c => c.id === activeId) : null;
 
   return (
-    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragOver={handleDragOver} onDragCancel={handleDragCancel} collisionDetection={collisionDetectionStrategy}>
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd} collisionDetection={closestCenter}>
       <div className="flex h-screen bg-gray-100 font-sans">
         <aside className="w-64 bg-white p-4 border-r overflow-y-auto flex-shrink-0">
           <h2 className="text-lg font-semibold mb-4">Add Components</h2>
-          {availableComponents.map(comp => (
+          {AVAILABLE_COMPONENTS.map(comp => (
             <PaletteItem key={comp.id} id={comp.id}>
               {comp.name}
             </PaletteItem>
@@ -199,35 +183,26 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
           </div>
 
           <div className="max-w-3xl mx-auto bg-white p-4 rounded-lg shadow-lg">
-            <DroppableCanvas>
-              <SortableContext items={components.map(c => c.id)} strategy={verticalListSortingStrategy}>
-                  <div className="min-h-[400px]" id="canvas-inner">
-                      {components.map(component => (
-                          <SortableItem
-                              key={component.id}
-                              id={component.id}
-                              componentData={component}
-                              onRemove={handleRemoveComponent}
-                              onEdit={handleEditComponent}
-                          />
-                      ))}
-                      {components.filter(c => c.type !== 'music_player').length === 0 && (
-                          <div className="text-center py-20 border-2 border-dashed rounded-lg flex items-center justify-center">
-                              <p className="text-muted-foreground">Drag components from the left panel and drop them here.</p>
-                          </div>
-                      )}
-                  </div>
-              </SortableContext>
-            </DroppableCanvas>
+            <SortableContext items={components.map(c => c.id)} strategy={verticalListSortingStrategy}>
+              <div className="min-h-[400px] space-y-4" id="canvas">
+                {components.map(component => (
+                  <SortableItem
+                    key={component.id}
+                    id={component.id}
+                    componentData={component}
+                    onRemove={handleRemoveComponent}
+                    onEdit={handleEditComponent}
+                  />
+                ))}
+                {components.filter(c => c.type !== 'music_player').length === 0 && (
+                   <div className="text-center py-20 border-2 border-dashed rounded-lg flex items-center justify-center">
+                      <p className="text-muted-foreground">Drag components from the left panel and drop them here.</p>
+                   </div>
+                )}
+              </div>
+            </SortableContext>
           </div>
         </main>
-
-        <aside className="w-72 bg-white p-4 border-l flex-shrink-0">
-          <h2 className="text-lg font-semibold mb-4">Properties</h2>
-          <div className="text-center text-sm text-gray-500 mt-10">
-            <p>Click the settings icon on a component to edit its properties.</p>
-          </div>
-        </aside>
       </div>
 
       <PropertiesPanel
@@ -238,24 +213,14 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
       />
 
       <DragOverlay>
-        {activeId && availableComponents.find(c => c.id === activeId) ?
+        {activeId && activePaletteItem ? (
           <div className="p-2 border rounded-md bg-white shadow-lg cursor-grabbing">
-            {availableComponents.find(c => c.id === activeId)?.name}
-          </div> :
-          null}
+            {activePaletteItem.name}
+          </div>
+        ) : activeId ? (
+          <SortableItem id={activeId} componentData={components.find(c => c.id === activeId)} onRemove={() => {}} onEdit={() => {}} />
+        ) : null}
       </DragOverlay>
     </DndContext>
-  );
-}
-
-function DroppableCanvas({ children }: { children: React.ReactNode }) {
-  const { setNodeRef } = useDroppable({
-    id: 'canvas-drop-area',
-  });
-
-  return (
-    <div ref={setNodeRef} className="w-full h-full">
-      {children}
-    </div>
   );
 }
