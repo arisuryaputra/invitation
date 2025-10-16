@@ -8,11 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { getTemplates, createInvitation } from '@/services/invitation.service';
+import type { Template } from '@/services/invitation.service';
 
-interface Template {
-  id: string;
-  name: string;
-}
 
 export default function CreateInvitationPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -22,46 +20,35 @@ export default function CreateInvitationPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetch('http://localhost:3001/api/templates')
-      .then((res) => res.json())
-      .then((data) => {
+    const fetchTemplates = async () => {
+        const data = await getTemplates();
         setTemplates(data);
         if (data.length > 0) {
-          setSelectedTemplate(data[0].id);
+            setSelectedTemplate(data[0].id);
         }
-      });
+    };
+    fetchTemplates();
   }, []);
 
-  const createInvitation = (body: object) => {
+  const handleCreate = async (body: object) => {
     setIsCreating(true);
-    fetch('http://localhost:3001/api/invitations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    .then(res => res.json())
-    .then(newInvitation => {
-      if (newInvitation.id) {
-        router.push(`/editor/${newInvitation.id}`);
-      } else {
-        throw new Error('Failed to create invitation, no ID received.');
-      }
-    })
-    .catch(err => {
-      console.error("Creation failed:", err);
+    const newInvitation = await createInvitation(body);
+    if (newInvitation && newInvitation.id) {
+      router.push(`/editor/${newInvitation.id}`);
+    } else {
       alert('Error creating invitation.');
       setIsCreating(false);
-    });
+    }
   };
 
   const handleCreateFromTemplate = () => {
     if (selectedTemplate) {
-      createInvitation({ templateId: selectedTemplate });
+      handleCreate({ templateId: selectedTemplate });
     }
   };
 
   const handleCreateBlank = () => {
-    createInvitation({});
+    handleCreate({});
   };
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -74,9 +61,8 @@ export default function CreateInvitationPage() {
         const content = e.target?.result;
         if (typeof content !== 'string') throw new Error('Invalid file content');
         const json = JSON.parse(content);
-        // Basic validation for the imported JSON structure
         if (json.components && Array.isArray(json.components)) {
-          createInvitation({ components: json.components });
+          handleCreate({ components: json.components });
         } else {
           alert('Invalid JSON format. The file must contain a "components" array.');
         }

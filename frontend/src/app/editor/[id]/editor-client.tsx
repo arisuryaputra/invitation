@@ -23,10 +23,10 @@ import { Button } from '@/components/ui/button';
 import { SortableItem } from '@/components/editor/SortableItem';
 import { PaletteItem } from '@/components/editor/PaletteItem';
 import { PropertiesPanel } from '@/components/editor/PropertiesPanel';
+import { saveInvitation } from '@/services/invitation.service';
+import type { Invitation, Component } from '@/services/invitation.service';
 
-// Helper to generate unique IDs in the browser
 const generateUniqueId = () => `comp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-
 const getFutureDate = () => {
     const date = new Date();
     date.setDate(date.getDate() + 30);
@@ -41,11 +41,10 @@ const availableComponents = [
   { id: 'music_player', name: 'Music Player', defaultProps: { songUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' } },
 ];
 
-export default function EditorClientPage({ initialData, invitationId }: { initialData: any, invitationId: string }) {
-  const [components, setComponents] = useState<any[]>(initialData?.components || []);
+export default function EditorClientPage({ initialData, invitationId }: { initialData: Invitation, invitationId: string }) {
+  const [components, setComponents] = useState<Component[]>(initialData.components);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [editingComponent, setEditingComponent] = useState<any | null>(null);
-  const router = useRouter();
+  const [editingComponent, setEditingComponent] = useState<Component | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, {
     activationConstraint: {
@@ -110,7 +109,7 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
       const paletteComponent = availableComponents.find(c => c.id === active.id);
       if (!paletteComponent) return;
 
-      const newComponent = {
+      const newComponent: Component = {
         id: generateUniqueId(),
         type: paletteComponent.id,
         props: paletteComponent.defaultProps || {},
@@ -148,10 +147,13 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
 
   const handleEditComponent = (idToEdit: string) => {
     const component = components.find(c => c.id === idToEdit);
-    setEditingComponent(component);
+    if (component) {
+      setEditingComponent(component);
+    }
   };
 
   const handleUpdateComponent = (updatedProps: any) => {
+    if (!editingComponent) return;
     setComponents(items => items.map(item => {
         if (item.id === editingComponent.id) {
             return { ...item, props: updatedProps };
@@ -161,18 +163,13 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
     setEditingComponent(null);
   };
 
-  const handleSave = () => {
-    fetch(`http://localhost:3001/api/invitations/${invitationId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ components }),
-    })
-    .then(res => res.json())
-    .then(() => alert('Layout saved!'))
-    .catch(err => {
-        console.error("Failed to save layout", err);
-        alert('Error saving layout.');
-    });
+  const handleSave = async () => {
+    const result = await saveInvitation(invitationId, components);
+    if (result) {
+      alert('Layout saved!');
+    } else {
+      alert('Error saving layout.');
+    }
   };
 
   const handleExport = () => {
@@ -236,13 +233,6 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
             </DroppableCanvas>
           </div>
         </main>
-
-        <aside className="w-72 bg-white p-4 border-l flex-shrink-0">
-          <h2 className="text-lg font-semibold mb-4">Properties</h2>
-          <div className="text-center text-sm text-gray-500 mt-10">
-            <p>Click the settings icon on a component to edit its properties.</p>
-          </div>
-        </aside>
       </div>
 
       <PropertiesPanel

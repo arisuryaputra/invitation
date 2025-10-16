@@ -75,6 +75,7 @@ export function SortableItem({ id, componentData, onRemove, onEdit }: SortableIt
           size="icon"
           className="cursor-pointer"
           onClick={() => onRemove(id)}
+          aria-label="Delete component"
         >
           <Trash2 className="h-4 w-4" />
         </Button>
