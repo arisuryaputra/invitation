@@ -10,6 +10,7 @@ import {
   useSensors,
   DragEndEvent,
   DragStartEvent,
+  DragOverEvent,
   DragOverlay,
   useDroppable,
 } from '@dnd-kit/core';
@@ -56,9 +57,50 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
     setActiveId(event.active.id as string);
   };
 
+  const handleDragOver = (event: DragOverEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const isPaletteItem = active.data.current?.isPaletteItem;
+    if (!isPaletteItem) return;
+
+    const overId = over.id;
+    const isDroppingOnCanvas = overId === 'canvas-drop-area';
+    const isDroppingOnItem = components.some(c => c.id === overId);
+
+    // If there's already a placeholder, no need to add another
+    if (components.some(c => c.type === 'placeholder')) {
+      return;
+    }
+
+    if (isDroppingOnCanvas || isDroppingOnItem) {
+      const activeId = active.id as string;
+      const overIndex = components.findIndex(c => c.id === overId);
+
+      const newPlaceholder = {
+        id: `placeholder-${activeId}`,
+        type: 'placeholder',
+        props: { height: '60px' },
+      };
+
+      if (isDroppingOnCanvas) {
+        setComponents(current => [...current, newPlaceholder]);
+      } else if (overIndex !== -1) {
+        setComponents(current => [
+          ...current.slice(0, overIndex),
+          newPlaceholder,
+          ...current.slice(overIndex)
+        ]);
+      }
+    }
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveId(null);
+
+    // Remove placeholder on drag end
+    setComponents(current => current.filter(c => c.type !== 'placeholder'));
 
     if (!over) return;
 
@@ -74,20 +116,20 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
         props: paletteComponent.defaultProps || {},
       };
 
-      // Check if dropping on the canvas itself, especially when it's empty
+      let overIndex = components.findIndex(c => c.id === over.id);
+
+      // If dropping on canvas, add to the end.
       if (over.id === 'canvas-drop-area') {
-        setComponents(current => [...current, newComponent]);
-      } else {
-        // Find the index of the item we're dropping over
-        const overIndex = components.findIndex(c => c.id === over.id);
-        if (overIndex !== -1) {
-          setComponents(current => [...current.slice(0, overIndex), newComponent, ...current.slice(overIndex)]);
-        } else {
-          // Fallback for when over.id is not in components, but it's not the canvas either
-          // This might happen if dropping on a SortableItem that is being removed
-          setComponents(current => [...current, newComponent]);
-        }
+        overIndex = components.length;
       }
+
+      // If over.id is not found, overIndex will be -1, which is fine for insertion logic
+      setComponents(current => [
+        ...current.slice(0, overIndex),
+        newComponent,
+        ...current.slice(overIndex)
+      ].filter(c => c.type !== 'placeholder'));
+
     } else {
       // Reordering existing components
       if (active.id !== over.id) {
@@ -143,8 +185,14 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
     linkElement.click();
   };
 
+  const handleDragCancel = () => {
+    // If drag is cancelled, remove any placeholder
+    setComponents(current => current.filter(c => c.type !== 'placeholder'));
+    setActiveId(null);
+  };
+
   return (
-    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd} collisionDetection={closestCenter}>
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragOver={handleDragOver} onDragCancel={handleDragCancel} collisionDetection={closestCenter}>
       <div className="flex h-screen bg-gray-100 font-sans">
         <aside className="w-64 bg-white p-4 border-r overflow-y-auto flex-shrink-0">
           <h2 className="text-lg font-semibold mb-4">Add Components</h2>

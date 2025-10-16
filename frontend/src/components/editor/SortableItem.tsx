@@ -13,12 +13,20 @@ import GiftRegistry from '@/components/invitation/GiftRegistry';
 import ImageGallery from '@/components/invitation/ImageGallery';
 import MusicPlayer from '@/components/invitation/MusicPlayer';
 
+const Placeholder = ({ height }: { height: string }) => (
+  <div
+    style={{ height }}
+    className="bg-gray-200 border-2 border-dashed border-gray-400 rounded-lg"
+  />
+);
+
 const componentMap: { [key: string]: React.ComponentType<any> } = {
   countdown: Countdown,
   guest_book: GuestBook,
   gift_registry: GiftRegistry,
   image_gallery: ImageGallery,
   music_player: MusicPlayer,
+  placeholder: Placeholder,
 };
 
 interface SortableItemProps {
