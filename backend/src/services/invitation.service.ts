@@ -62,7 +62,15 @@ export const createNewInvitation = async (templateId?: string, importedComponent
       id: `inv-${crypto.randomUUID()}`,
       templateId: template.id,
       createdAt: new Date().toISOString(),
-      components: template.defaultComponents.map(c => ({ ...c, id: `comp-${crypto.randomUUID()}` })),
+        components: template.defaultComponents.map((c: any) => {
+          const newComp = { ...c, id: `comp-${crypto.randomUUID()}` };
+          if (newComp.type === 'countdown' && !newComp.props.targetDate) {
+            const futureDate = new Date();
+            futureDate.setDate(futureDate.getDate() + 30);
+            newComp.props.targetDate = futureDate.toISOString();
+          }
+          return newComp;
+        }),
     };
   } else if (importedComponents) {
     newInvitation = {

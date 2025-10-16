@@ -4,7 +4,7 @@ import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@/components/ui/button';
-import { GripVertical, Trash2 } from 'lucide-react';
+import { GripVertical, Trash2, Settings } from 'lucide-react';
 
 // Import invitation components
 import Countdown from '@/components/invitation/Countdown';
@@ -25,9 +25,10 @@ interface SortableItemProps {
   id: string;
   componentData: any;
   onRemove: (id: string) => void;
+  onEdit: (id: string) => void;
 }
 
-export function SortableItem({ id, componentData, onRemove }: SortableItemProps) {
+export function SortableItem({ id, componentData, onRemove, onEdit }: SortableItemProps) {
   const {
     attributes,
     listeners,
@@ -52,7 +53,15 @@ export function SortableItem({ id, componentData, onRemove }: SortableItemProps)
 
   return (
     <div ref={setNodeRef} style={style} className="relative group mb-4">
-      <div className="absolute top-2 right-2 z-10 flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="absolute top-2 right-2 z-10 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/50 backdrop-blur-sm rounded-md">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="cursor-pointer"
+          onClick={() => onEdit(id)}
+        >
+          <Settings className="h-4 w-4" />
+        </Button>
         <Button
           variant="ghost"
           size="icon"
