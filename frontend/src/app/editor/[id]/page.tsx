@@ -1,26 +1,36 @@
 import React from 'react';
 import EditorClientPage from './editor-client';
-import { getInvitationById } from '@/services/invitation.service';
-import type { Invitation } from '@/services/invitation.service';
 
 interface PageProps {
   params: { id: string };
 }
 
-// This is a React Server Component (RSC)
-// It fetches data on the server and passes it to the client component.
+async function getInvitationData(invitationId: string) {
+  try {
+    const res = await fetch(`http://localhost:3001/api/invitations/${invitationId}`, {
+      cache: 'no-store', // Ensure fresh data for the editor
+    });
+
+    if (!res.ok) {
+      console.error(`Failed to fetch invitation: ${res.status}`);
+      return null;
+    }
+
+    return await res.json();
+  } catch (error) {
+    console.error("An error occurred while fetching invitation data:", error);
+    return null;
+  }
+}
+
+// This is now a React Server Component (RSC)
 export default async function EditorPage({ params }: PageProps) {
   const { id } = params;
-  const initialData = await getInvitationById(id);
+  const initialData = await getInvitationData(id);
 
   if (!initialData) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <p>Invitation not found or failed to load.</p>
-      </div>
-    );
+    return <div className="flex h-screen items-center justify-center">Invitation not found or failed to load.</div>;
   }
 
-  // Pass the fetched data and id to the client component
   return <EditorClientPage initialData={initialData} invitationId={id} />;
 }

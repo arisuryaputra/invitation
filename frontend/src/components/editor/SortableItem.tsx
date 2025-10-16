@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
+import { useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@/components/ui/button';
 import { GripVertical, Trash2, Settings } from 'lucide-react';
@@ -59,8 +60,19 @@ export function SortableItem({ id, componentData, onRemove, onEdit }: SortableIt
     return <Component {...componentData.props} />;
   }
 
+  // Placeholder doesn't need drop zones
+  if (componentData.type === 'placeholder') {
+    return (
+      <div ref={setNodeRef} style={style}>
+        <Component {...componentData.props} />
+      </div>
+    );
+  }
+
   return (
     <div ref={setNodeRef} style={style} className="relative group mb-4">
+      <DropZone id={`${id}-top`} className="absolute top-0 h-1/2 w-full" />
+      <DropZone id={`${id}-bottom`} className="absolute bottom-0 h-1/2 w-full" />
       <div className="absolute top-2 right-2 z-10 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/50 backdrop-blur-sm rounded-md">
         <Button
           variant="ghost"
@@ -75,7 +87,6 @@ export function SortableItem({ id, componentData, onRemove, onEdit }: SortableIt
           size="icon"
           className="cursor-pointer"
           onClick={() => onRemove(id)}
-          aria-label="Delete component"
         >
           <Trash2 className="h-4 w-4" />
         </Button>
@@ -89,9 +100,19 @@ export function SortableItem({ id, componentData, onRemove, onEdit }: SortableIt
           <GripVertical className="h-4 w-4" />
         </Button>
       </div>
-      <div className="border rounded-lg p-4 bg-gray-50">
+      <div className="border rounded-lg p-4 bg-gray-50 pointer-events-none">
         {Component ? <Component {...componentData.props} /> : <div>Unknown Component</div>}
       </div>
     </div>
   );
 }
+
+const DropZone = ({ id, className }: { id: string; className: string }) => {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`${className} ${isOver ? 'bg-blue-200/50' : ''}`}
+    />
+  );
+};
