@@ -4,7 +4,6 @@ import React, { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   DndContext,
-  closestCenter,
   PointerSensor,
   useSensor,
   useSensors,
@@ -13,6 +12,8 @@ import {
   DragOverEvent,
   DragOverlay,
   useDroppable,
+  rectIntersection,
+  pointerWithin,
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -164,8 +165,18 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
     setActiveId(null);
   };
 
+  const collisionDetectionStrategy = (args: any) => {
+    // First, check for pointer collisions
+    const pointerCollisions = pointerWithin(args);
+    if (pointerCollisions.length > 0) {
+      return pointerCollisions;
+    }
+    // If no pointer collisions, fall back to rectangle intersection
+    return rectIntersection(args);
+  };
+
   return (
-    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragOver={handleDragOver} onDragCancel={handleDragCancel} collisionDetection={closestCenter}>
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragOver={handleDragOver} onDragCancel={handleDragCancel} collisionDetection={collisionDetectionStrategy}>
       <div className="flex h-screen bg-gray-100 font-sans">
         <aside className="w-64 bg-white p-4 border-r overflow-y-auto flex-shrink-0">
           <h2 className="text-lg font-semibold mb-4">Add Components</h2>
