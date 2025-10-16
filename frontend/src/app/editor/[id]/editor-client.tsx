@@ -28,14 +28,8 @@ import { PropertiesPanel } from '@/components/editor/PropertiesPanel';
 // Helper to generate unique IDs in the browser
 const generateUniqueId = () => `comp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
-const getFutureDate = () => {
-    const date = new Date();
-    date.setDate(date.getDate() + 30);
-    return date.toISOString();
-};
-
 const availableComponents = [
-  { id: 'countdown', name: 'Countdown', defaultProps: { title: 'Countdown to Our Big Day!', targetDate: getFutureDate() } },
+  { id: 'countdown', name: 'Countdown', defaultProps: { title: 'Countdown to Our Big Day!' } },
   { id: 'guest_book', name: 'Guest Book', defaultProps: {} },
   { id: 'gift_registry', name: 'Gift Registry', defaultProps: {} },
   { id: 'image_gallery', name: 'Image Gallery', defaultProps: { images: [] } },
@@ -103,10 +97,17 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
     const paletteComponent = availableComponents.find(c => c.id === active.id);
     if (!paletteComponent) return;
 
+    const newComponentProps = { ...paletteComponent.defaultProps };
+    if (paletteComponent.id === 'countdown') {
+        const futureDate = new Date();
+        futureDate.setDate(futureDate.getDate() + 30);
+        newComponentProps.targetDate = futureDate.toISOString();
+    }
+
     const newComponent = {
         id: generateUniqueId(),
         type: paletteComponent.id,
-        props: paletteComponent.defaultProps || {},
+        props: newComponentProps,
     };
 
     setComponents(current => {
