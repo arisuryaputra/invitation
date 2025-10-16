@@ -3,6 +3,8 @@
 import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { Button } from '@/components/ui/button';
+import { GripVertical, Trash2 } from 'lucide-react';
 
 // Import invitation components
 import Countdown from '@/components/invitation/Countdown';
@@ -11,7 +13,6 @@ import GiftRegistry from '@/components/invitation/GiftRegistry';
 import ImageGallery from '@/components/invitation/ImageGallery';
 import MusicPlayer from '@/components/invitation/MusicPlayer';
 
-// A generic component to render our invitation components based on type
 const componentMap: { [key: string]: React.ComponentType<any> } = {
   countdown: Countdown,
   guest_book: GuestBook,
@@ -20,30 +21,59 @@ const componentMap: { [key: string]: React.ComponentType<any> } = {
   music_player: MusicPlayer,
 };
 
-export function SortableItem({ id, componentData }: { id: string, componentData: any }) {
+interface SortableItemProps {
+  id: string;
+  componentData: any;
+  onRemove: (id: string) => void;
+}
+
+export function SortableItem({ id, componentData, onRemove }: SortableItemProps) {
   const {
     attributes,
     listeners,
     setNodeRef,
     transform,
     transition,
+    isDragging,
   } = useSortable({ id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
+    opacity: isDragging ? 0.5 : 1,
   };
 
   const Component = componentMap[componentData.type];
 
-  // MusicPlayer is positioned fixed, so it shouldn't be part of the sortable layout flow.
+  // Music player is a special case, rendered without drag handles/remove buttons
   if (componentData.type === 'music_player') {
-      return <Component {...componentData.props} />
+    return <Component {...componentData.props} />;
   }
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="p-4 my-2 bg-gray-100 border rounded-md cursor-grab touch-none">
-      {Component ? <Component {...componentData.props} /> : <div>Unknown Component: {componentData.type}</div>}
+    <div ref={setNodeRef} style={style} className="relative group mb-4">
+      <div className="absolute top-2 right-2 z-10 flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="cursor-pointer"
+          onClick={() => onRemove(id)}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          {...attributes}
+          {...listeners}
+          className="cursor-grab touch-none"
+        >
+          <GripVertical className="h-4 w-4" />
+        </Button>
+      </div>
+      <div className="border rounded-lg p-4 bg-gray-50">
+        {Component ? <Component {...componentData.props} /> : <div>Unknown Component</div>}
+      </div>
     </div>
   );
 }

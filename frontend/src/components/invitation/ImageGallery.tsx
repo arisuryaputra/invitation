@@ -1,6 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface ImageGalleryProps {
   images?: string[];
@@ -27,30 +30,32 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({ images = defaultImages }) =
     setCurrentIndex(newIndex);
   };
 
+  if (!images || images.length === 0) {
+    return null;
+  }
+
   return (
-    <div className="p-4 rounded-lg shadow-md bg-white w-full max-w-2xl mx-auto">
-      <h3 className="text-xl font-semibold text-center mb-4">Our Gallery</h3>
-      <div className="relative h-96">
-        <div
-          style={{ backgroundImage: `url(${images[currentIndex]})` }}
-          className="w-full h-full rounded-lg bg-center bg-cover duration-500"
-        ></div>
-        {/* Left Arrow */}
-        <button
-          onClick={goToPrevious}
-          className="absolute top-1/2 left-2 -translate-y-1/2 bg-black/30 text-white p-2 rounded-full hover:bg-black/50"
-        >
-          &#10094;
-        </button>
-        {/* Right Arrow */}
-        <button
-          onClick={goToNext}
-          className="absolute top-1/2 right-2 -translate-y-1/2 bg-black/30 text-white p-2 rounded-full hover:bg-black/50"
-        >
-          &#10095;
-        </button>
-      </div>
-    </div>
+    <Card className="w-full max-w-2xl mx-auto overflow-hidden">
+      <CardHeader>
+        <CardTitle className="text-center">Our Gallery</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="relative aspect-video">
+          <div
+            style={{ backgroundImage: `url(${images[currentIndex]})` }}
+            className="w-full h-full rounded-md bg-center bg-cover transition-all duration-500"
+          ></div>
+          <div className="absolute inset-0 flex items-center justify-between p-2">
+            <Button variant="outline" size="icon" onClick={goToPrevious}>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="icon" onClick={goToNext}>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 

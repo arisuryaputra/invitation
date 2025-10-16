@@ -74,5 +74,93 @@
         "id": "comp-a45db084-d899-4c29-a19d-22c8cee12ff7"
       }
     ]
+  },
+  {
+    "id": "inv-f72a5cc8-1a61-4b5a-bc75-e21f8a1ce8df",
+    "templateId": "tmpl-wedding-classic",
+    "createdAt": "2025-10-16T11:15:42.274Z",
+    "components": [
+      {
+        "type": "countdown",
+        "props": {
+          "title": "Countdown to Our Wedding"
+        },
+        "id": "comp-ce302672-5c98-47bc-88e5-04c6a4398f5a"
+      },
+      {
+        "type": "guest_book",
+        "props": {},
+        "id": "comp-e976deea-50f2-4104-b50a-7da7b42e6a5a"
+      },
+      {
+        "type": "gift_registry",
+        "props": {},
+        "id": "comp-84281c81-42cc-4bc2-9971-dd8612d69c81"
+      },
+      {
+        "type": "image_gallery",
+        "props": {
+          "images": []
+        },
+        "id": "comp-a0b1bdab-ebaa-4a7d-a490-45fc8e74f11f"
+      },
+      {
+        "type": "music_player",
+        "props": {
+          "songUrl": ""
+        },
+        "id": "comp-e5a12ebf-5ea6-4fe9-9c99-dd74589cabf3"
+      }
+    ]
+  },
+  {
+    "id": "inv-2c5b1903-44ea-4139-9295-1636696221c2",
+    "templateId": "blank",
+    "createdAt": "2025-10-16T11:15:46.561Z",
+    "components": []
+  },
+  {
+    "id": "inv-b23571f2-348a-420d-88d6-b1b66f25f660",
+    "templateId": "tmpl-wedding-classic",
+    "createdAt": "2025-10-16T11:20:02.792Z",
+    "components": [
+      {
+        "type": "countdown",
+        "props": {
+          "title": "Countdown to Our Wedding"
+        },
+        "id": "comp-70e68106-ff2b-4516-ab31-66de64381336"
+      },
+      {
+        "type": "guest_book",
+        "props": {},
+        "id": "comp-719dc342-2e5c-449c-b339-9e49addb48ca"
+      },
+      {
+        "type": "gift_registry",
+        "props": {},
+        "id": "comp-cf9e2a36-6f59-4bf4-be3f-50973cf6994f"
+      },
+      {
+        "type": "image_gallery",
+        "props": {
+          "images": []
+        },
+        "id": "comp-620a91d2-35bb-4740-afb9-dd0fa14c5493"
+      },
+      {
+        "type": "music_player",
+        "props": {
+          "songUrl": ""
+        },
+        "id": "comp-5889a761-1670-4d45-a539-8f2beeddab68"
+      }
+    ]
+  },
+  {
+    "id": "inv-64ed6d46-32dd-4be8-ab65-7176d8e65098",
+    "templateId": "blank",
+    "createdAt": "2025-10-16T11:20:07.937Z",
+    "components": []
   }
 ]

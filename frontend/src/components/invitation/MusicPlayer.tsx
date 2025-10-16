@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
+import { Button } from '@/components/ui/button';
+import { Play, Pause } from 'lucide-react';
 
 interface MusicPlayerProps {
   songUrl: string;
@@ -10,8 +12,11 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ songUrl }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  // If no song URL is provided (it's empty, null, or undefined), don't render the component.
-  if (!songUrl) {
+  // Use a default song for demonstration if the prop is not passed,
+  // but handle the case where it's explicitly an empty string.
+  const effectiveSongUrl = songUrl || "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
+
+  if (!effectiveSongUrl) {
     return null;
   }
 
@@ -26,22 +31,16 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ songUrl }) => {
 
   return (
     <div className="fixed bottom-4 right-4 z-50">
-      <audio ref={audioRef} src={songUrl} loop />
-      <button
+      <audio ref={audioRef} src={effectiveSongUrl} loop />
+      <Button
         onClick={togglePlayPause}
-        className="w-14 h-14 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-indigo-700 focus:outline-none"
+        variant="secondary"
+        size="icon"
+        className="rounded-full h-14 w-14"
         aria-label={isPlaying ? 'Pause music' : 'Play music'}
       >
-        {isPlaying ? (
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6" />
-          </svg>
-        ) : (
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-          </svg>
-        )}
-      </button>
+        {isPlaying ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}
+      </Button>
     </div>
   );
 };

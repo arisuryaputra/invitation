@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface CountdownProps {
   targetDate?: string; // ISO string format: "YYYY-MM-DDTHH:mm:ss"
@@ -15,7 +16,7 @@ const Countdown: React.FC<CountdownProps> = ({ targetDate, title }) => {
 
   const calculateTimeLeft = () => {
     const difference = +new Date(effectiveTargetDate) - +new Date();
-    let timeLeft = {};
+    let timeLeft: { [key: string]: number } = {};
 
     if (difference > 0) {
       timeLeft = {
@@ -42,28 +43,30 @@ const Countdown: React.FC<CountdownProps> = ({ targetDate, title }) => {
   const timerComponents: React.ReactNode[] = [];
 
   Object.keys(timeLeft).forEach((interval) => {
-    // @ts-ignore
-    if (!timeLeft[interval]) {
+    if (timeLeft[interval] === undefined) {
       return;
     }
     timerComponents.push(
       <div key={interval} className="text-center">
-        <div className="text-4xl font-bold">
-          {/* @ts-ignore */}
+        <div className="text-4xl font-bold text-primary">
           {String(timeLeft[interval]).padStart(2, '0')}
         </div>
-        <div className="text-sm uppercase">{interval}</div>
+        <div className="text-sm uppercase text-muted-foreground">{interval}</div>
       </div>
     );
   });
 
   return (
-    <div className="p-4 rounded-lg shadow-md bg-white text-gray-800 w-full max-w-md mx-auto">
-      <h3 className="text-xl font-semibold text-center mb-4">{title}</h3>
-      <div className="flex justify-center space-x-4">
-        {timerComponents.length ? timerComponents : <div className="text-2xl">Time's up!</div>}
-      </div>
-    </div>
+    <Card className="w-full max-w-md mx-auto">
+      <CardHeader>
+        <CardTitle className="text-center">{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex justify-center space-x-4 md:space-x-8">
+          {timerComponents.length ? timerComponents : <div className="text-2xl">Time's up!</div>}
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 

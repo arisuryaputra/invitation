@@ -1,6 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 interface GuestBookProps {}
 
@@ -30,56 +35,53 @@ const GuestBook: React.FC<GuestBookProps> = () => {
   };
 
   return (
-    <div className="p-4 rounded-lg shadow-md bg-white text-gray-800 w-full max-w-md mx-auto">
-      <h3 className="text-xl font-semibold text-center mb-4">Guest Book & RSVP</h3>
-      <form onSubmit={handleSubmit} className="mb-6">
-        <div className="mb-4">
-          <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-            Your Name
-          </label>
-          <input
-            type="text"
-            id="name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            required
-          />
+    <Card className="w-full max-w-md mx-auto">
+      <CardHeader>
+        <CardTitle>Guest Book & RSVP</CardTitle>
+        <CardDescription>Leave a message and let us know you're coming!</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid w-full items-center gap-1.5">
+            <Label htmlFor="name">Your Name</Label>
+            <Input
+              type="text"
+              id="name"
+              placeholder="John Doe"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+          </div>
+          <div className="grid w-full items-center gap-1.5">
+            <Label htmlFor="message">Message / Wishes</Label>
+            <Textarea
+              id="message"
+              placeholder="Type your message here."
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              required
+            />
+          </div>
+          <Button type="submit" className="w-full">
+            Send Message
+          </Button>
+        </form>
+        <div className="mt-6 space-y-4">
+          {comments.length > 0 ? (
+            comments.map((comment, index) => (
+              <div key={index} className="p-3 bg-muted rounded-md border">
+                <p className="font-semibold text-card-foreground">{comment.name}</p>
+                <p className="text-sm text-muted-foreground">{comment.message}</p>
+                <p className="text-xs text-muted-foreground mt-1">{comment.timestamp}</p>
+              </div>
+            ))
+          ) : (
+            <p className="text-center text-muted-foreground py-4">No messages yet. Be the first to comment!</p>
+          )}
         </div>
-        <div className="mb-4">
-          <label htmlFor="message" className="block text-sm font-medium text-gray-700">
-            Message / Wishes
-          </label>
-          <textarea
-            id="message"
-            rows={3}
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            required
-          ></textarea>
-        </div>
-        <button
-          type="submit"
-          className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-        >
-          Send Message
-        </button>
-      </form>
-      <div className="space-y-4">
-        {comments.length > 0 ? (
-          comments.map((comment, index) => (
-            <div key={index} className="p-3 bg-gray-50 rounded-md border border-gray-200">
-              <p className="font-semibold">{comment.name}</p>
-              <p className="text-gray-600">{comment.message}</p>
-              <p className="text-xs text-gray-400 mt-1">{comment.timestamp}</p>
-            </div>
-          ))
-        ) : (
-          <p className="text-center text-gray-500">No messages yet. Be the first to comment!</p>
-        )}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 };
 

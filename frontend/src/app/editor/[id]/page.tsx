@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   DndContext,
   closestCenter,
@@ -8,124 +9,182 @@ import {
   useSensor,
   useSensors,
   DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
 } from '@dnd-kit/core';
 import {
   arrayMove,
   SortableContext,
-  sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-
-// Import invitation components
-import Countdown from '@/components/invitation/Countdown';
-import GuestBook from '@/components/invitation/GuestBook';
-import GiftRegistry from '@/components/invitation/GiftRegistry';
-import ImageGallery from '@/components/invitation/ImageGallery';
-
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SortableItem } from '@/components/editor/SortableItem';
+import { PaletteItem } from '@/components/editor/PaletteItem';
+import crypto from 'crypto';
 
 interface PageProps {
   params: { id: string };
 }
 
+const availableComponents = [
+  { id: 'countdown', name: 'Countdown' },
+  { id: 'guest_book', name: 'Guest Book' },
+  { id: 'gift_registry', name: 'Gift Registry' },
+  { id: 'image_gallery', name: 'Image Gallery' },
+  { id: 'music_player', name: 'Music Player' },
+];
+
 export default function EditorPage({ params }: PageProps) {
   const { id: invitationId } = params;
   const [components, setComponents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
-    if (invitationId) {
-      fetch(`http://localhost:3001/api/invitations/${invitationId}`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data && data.components) {
-            setComponents(data.components);
-          }
-          setLoading(false);
-        })
-        .catch(err => {
-            console.error("Failed to fetch invitation", err);
-            setLoading(false);
-        });
-    }
+    fetch(`http://localhost:3001/api/invitations/${invitationId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.components) {
+          setComponents(data.components);
+        }
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error("Failed to fetch invitation", err);
+        setLoading(false);
+      });
   }, [invitationId]);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor)
-  );
+  const sensors = useSensors(useSensor(PointerSensor));
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  };
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    if (over && active.id !== over.id) {
-      setComponents((items) => {
-        const oldIndex = items.findIndex((item) => item.id === active.id);
-        const newIndex = items.findIndex((item) => item.id === over.id);
-        return arrayMove(items, oldIndex, newIndex);
-      });
+    setActiveId(null);
+
+    if (!over) return;
+
+    const isPaletteItem = active.data.current?.isPaletteItem;
+
+    if (isPaletteItem) {
+      // Add new component from palette
+      const newComponent = {
+        id: `comp-${crypto.randomBytes(8).toString('hex')}`,
+        type: active.id,
+        props: {}, // Default props
+      };
+      // For simplicity, add to the end. A more complex implementation could use over.id to determine position.
+      setComponents(current => [...current, newComponent]);
+    } else {
+      // Reorder existing components
+      if (active.id !== over.id) {
+        setComponents((items) => {
+          const oldIndex = items.findIndex((item) => item.id === active.id);
+          const newIndex = items.findIndex((item) => item.id === over.id);
+          return arrayMove(items, oldIndex, newIndex);
+        });
+      }
     }
+  };
+
+  const handleRemoveComponent = (idToRemove: string) => {
+    setComponents((items) => items.filter(item => item.id !== idToRemove));
   };
 
   const handleSave = () => {
     fetch(`http://localhost:3001/api/invitations/${invitationId}`, {
         method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ components }),
     })
     .then(res => res.json())
-    .then(data => {
-        alert('Layout saved!');
-        console.log('Save response:', data);
-    })
+    .then(() => alert('Layout saved!'))
     .catch(err => {
         console.error("Failed to save layout", err);
         alert('Error saving layout.');
     });
   };
 
+  const handleExport = () => {
+    const dataStr = JSON.stringify({ components }, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
 
-  if (loading) {
-    return <div>Loading Editor...</div>;
-  }
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', 'invitation.json');
+    linkElement.click();
+  };
+
+  if (loading) return <div>Loading Editor...</div>;
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      {/* Component Palette (Left Sidebar) */}
-      <div className="w-1/4 bg-white p-4 border-r">
-        <h2 className="text-lg font-bold mb-4">Components</h2>
-        {/* This will be populated with draggable components */}
-        <div className="p-2 border rounded-md bg-gray-100 mb-2">Countdown</div>
-        <div className="p-2 border rounded-md bg-gray-100 mb-2">Guest Book</div>
-        <div className="p-2 border rounded-md bg-gray-100 mb-2">Gift Registry</div>
-        <div className="p-2 border rounded-md bg-gray-100 mb-2">Image Gallery</div>
-      </div>
-
-      {/* Canvas (Main Area) */}
-      <div className="flex-1 p-8 overflow-auto">
-        <div className="flex justify-between items-center mb-4">
-            <h1 className="text-2xl font-bold">Invitation Editor</h1>
-            <button onClick={handleSave} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                Save Layout
-            </button>
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd} collisionDetection={closestCenter}>
+      <div className="flex h-screen bg-gray-100 font-sans">
+        {/* Component Palette */}
+        <div className="w-64 bg-white p-4 border-r overflow-y-auto">
+          <h2 className="text-lg font-semibold mb-4">Add Components</h2>
+          {availableComponents.map(comp => (
+            <PaletteItem key={comp.id} id={comp.id}>
+              {comp.name}
+            </PaletteItem>
+          ))}
         </div>
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={components.map(c => c.id)} strategy={verticalListSortingStrategy}>
-            <div className="w-full max-w-3xl mx-auto bg-white p-4 rounded-lg shadow-lg">
-                {components.map(component => (
-                    <SortableItem key={component.id} id={component.id} componentData={component} />
-                ))}
+
+        {/* Canvas */}
+        <main className="flex-1 p-6 overflow-y-auto">
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl font-bold">Invitation Editor</h1>
+            <div className="flex space-x-2">
+              <Button variant="outline" onClick={() => router.push(`/invitation/${invitationId}`)}>Preview</Button>
+              <Button variant="outline" onClick={handleExport}>Export</Button>
+              <Button onClick={handleSave}>Save</Button>
             </div>
-          </SortableContext>
-        </DndContext>
+          </div>
+
+          <div className="max-w-3xl mx-auto bg-white p-4 rounded-lg shadow-lg">
+            <SortableContext items={components.map(c => c.id)} strategy={verticalListSortingStrategy}>
+              {components.map(component => (
+                <SortableItem
+                  key={component.id}
+                  id={component.id}
+                  componentData={component}
+                  onRemove={handleRemoveComponent}
+                />
+              ))}
+              {!components.filter(c => c.type !== 'music_player').length && (
+                 <div className="text-center py-20 border-2 border-dashed rounded-lg">
+                    <p className="text-muted-foreground">Drop components here</p>
+                 </div>
+              )}
+            </SortableContext>
+          </div>
+        </main>
+
+        {/* Properties Panel (Placeholder) */}
+        <aside className="w-72 bg-white p-4 border-l">
+          <h2 className="text-lg font-semibold mb-4">Properties</h2>
+          <div className="text-center text-sm text-gray-500">
+            <p>Select a component on the canvas to see its properties.</p>
+            <p className="mt-4"><i>Property editing is not yet implemented.</i></p>
+          </div>
+        </aside>
       </div>
 
-      {/* Properties Panel (Right Sidebar) */}
-      <div className="w-1/4 bg-white p-4 border-l">
-        <h2 className="text-lg font-bold mb-4">Properties</h2>
-        {/* This will show options for the selected component */}
-        <p className="text-sm text-gray-500">Select a component to edit its properties.</p>
-      </div>
-    </div>
+      <DragOverlay>
+        {activeId && activeId.startsWith('comp-') ?
+          <SortableItem id={activeId} componentData={components.find(c => c.id === activeId)} onRemove={() => {}} /> :
+          null}
+        {activeId && availableComponents.find(c => c.id === activeId) ?
+          <div className="p-2 border rounded-md bg-white shadow-lg">
+            {availableComponents.find(c => c.id === activeId)?.name}
+          </div> :
+          null}
+      </DragOverlay>
+    </DndContext>
   );
 }

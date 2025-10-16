@@ -1,6 +1,8 @@
 'use client';
 
 import React from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface Account {
   bankName: string;
@@ -28,33 +30,36 @@ const defaultAccounts: Account[] = [
 const GiftRegistry: React.FC<GiftRegistryProps> = ({ accounts = defaultAccounts }) => {
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text).then(() => {
+      // Potentially use a toast notification here in a real app
       alert('Copied to clipboard!');
     });
   };
 
   return (
-    <div className="p-4 rounded-lg shadow-md bg-white text-gray-800 w-full max-w-md mx-auto">
-      <h3 className="text-xl font-semibold text-center mb-4">Wedding Gift</h3>
-      <p className="text-center text-gray-600 mb-6">
-        Your presence is the greatest gift, but if you wish to give something more,
-        you can use the following accounts.
-      </p>
-      <div className="space-y-4">
+    <Card className="w-full max-w-md mx-auto">
+      <CardHeader className="text-center">
+        <CardTitle>Wedding Gift</CardTitle>
+        <CardDescription>
+          Your presence is the greatest gift, but if you wish to give something more, you can use the following accounts.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
         {accounts.map((account, index) => (
-          <div key={index} className="p-4 bg-gray-50 rounded-lg border border-gray-200 text-center">
-            <h4 className="font-bold text-lg">{account.bankName}</h4>
-            <p className="text-2xl my-2">{account.accountNumber}</p>
-            <p className="text-md mb-3">a/n {account.accountHolder}</p>
-            <button
+          <div key={index} className="p-4 bg-muted rounded-lg border text-center">
+            <h4 className="font-bold text-lg text-card-foreground">{account.bankName}</h4>
+            <p className="text-2xl my-2 font-mono text-primary">{account.accountNumber}</p>
+            <p className="text-md mb-3 text-muted-foreground">a/n {account.accountHolder}</p>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => handleCopy(account.accountNumber)}
-              className="px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-100 rounded-md hover:bg-indigo-200 focus:outline-none"
             >
               Copy Account Number
-            </button>
+            </Button>
           </div>
         ))}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 };
 
