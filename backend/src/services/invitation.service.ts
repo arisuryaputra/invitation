@@ -3,7 +3,7 @@ import path from 'path';
 import crypto from 'crypto';
 
 // --- Paths and Interfaces ---
-const dbPath = path.join(__dirname, '..', '..', 'db'); // Relative to the compiled dist/services directory
+const dbPath = path.join(__dirname, '..', '..', 'db');
 const templatesPath = path.join(dbPath, 'templates.json');
 const invitationsPath = path.join(dbPath, 'invitations.json');
 
@@ -53,6 +53,7 @@ export const createNewInvitation = async (templateId?: string, importedComponent
   let newInvitation: Invitation;
 
   if (templateId) {
+    // Create from template
     const templates = await getTemplates();
     const template = templates.find(t => t.id === templateId);
     if (!template) {
@@ -62,24 +63,28 @@ export const createNewInvitation = async (templateId?: string, importedComponent
       id: `inv-${crypto.randomUUID()}`,
       templateId: template.id,
       createdAt: new Date().toISOString(),
-        components: template.defaultComponents.map((c: any) => {
-          const newComp = { ...c, id: `comp-${crypto.randomUUID()}` };
-          if (newComp.type === 'countdown' && !newComp.props.targetDate) {
-            const futureDate = new Date();
-            futureDate.setDate(futureDate.getDate() + 30);
-            newComp.props.targetDate = futureDate.toISOString();
-          }
-          return newComp;
-        }),
+      components: template.defaultComponents.map((c: any) => {
+        const newComp = { ...c, id: `comp-${crypto.randomUUID()}` };
+        // Specifically add a default targetDate for countdowns if not present
+        if (newComp.type === 'countdown' && !newComp.props.targetDate) {
+          const futureDate = new Date();
+          futureDate.setDate(futureDate.getDate() + 30);
+          newComp.props.targetDate = futureDate.toISOString();
+        }
+        return newComp;
+      }),
     };
   } else if (importedComponents) {
+    // Create from imported JSON
     newInvitation = {
       id: `inv-${crypto.randomUUID()}`,
       templateId: 'custom',
       createdAt: new Date().toISOString(),
+      // Assign new unique IDs to imported components
       components: importedComponents.map((c: any) => ({ ...c, id: `comp-${crypto.randomUUID()}` })),
     };
   } else {
+    // Create a blank invitation
     newInvitation = {
       id: `inv-${crypto.randomUUID()}`,
       templateId: 'blank',
