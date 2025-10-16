@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   DndContext,
@@ -23,10 +23,10 @@ import { Button } from '@/components/ui/button';
 import { SortableItem } from '@/components/editor/SortableItem';
 import { PaletteItem } from '@/components/editor/PaletteItem';
 import { PropertiesPanel } from '@/components/editor/PropertiesPanel';
-import { saveInvitation } from '@/services/invitation.service';
-import type { Invitation, Component } from '@/services/invitation.service';
 
+// Helper to generate unique IDs in the browser
 const generateUniqueId = () => `comp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
 const getFutureDate = () => {
     const date = new Date();
     date.setDate(date.getDate() + 30);
@@ -41,10 +41,12 @@ const availableComponents = [
   { id: 'music_player', name: 'Music Player', defaultProps: { songUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' } },
 ];
 
-export default function EditorClientPage({ initialData, invitationId }: { initialData: Invitation, invitationId: string }) {
-  const [components, setComponents] = useState<Component[]>(initialData.components);
+export default function EditorClientPage({ initialData, invitationId }: { initialData: any, invitationId: string }) {
+  const [components, setComponents] = useState<any[]>(initialData?.components || []);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [editingComponent, setEditingComponent] = useState<Component | null>(null);
+  const [editingComponent, setEditingComponent] = useState<any | null>(null);
+  const router = useRouter();
+  const lastOverId = useRef<string | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, {
     activationConstraint: {
@@ -58,87 +60,59 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
 
   const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
-    if (!over || active.id === over.id) return;
+    if (!over || !active.data.current?.isPaletteItem || over.id === lastOverId.current) {
+        return;
+    }
+    lastOverId.current = over.id as string;
 
-    const isPaletteItem = active.data.current?.isPaletteItem;
-    if (!isPaletteItem) return;
-
-    const overId = over.id;
+    const overId = over.id as string;
     const isDroppingOnCanvas = overId === 'canvas-drop-area';
-    const isDroppingOnItem = components.some(c => c.id === overId);
+    const isDroppingOnDropZone = overId.includes('-top') || overId.includes('-bottom');
 
-    // If there's already a placeholder, no need to add another
-    if (components.some(c => c.type === 'placeholder')) {
-      return;
+    const placeholderId = `placeholder-${active.id}`;
+    const placeholder = { id: placeholderId, type: 'placeholder', props: { height: '60px' } };
+
+    let newComponents = components.filter(c => c.type !== 'placeholder');
+
+    if (isDroppingOnCanvas) {
+        newComponents.push(placeholder);
+    } else if (isDroppingOnDropZone) {
+        const parentId = overId.split('-')[0];
+        const overIndex = newComponents.findIndex(c => c.id === parentId);
+        if (overIndex !== -1) {
+            const insertIndex = overId.endsWith('-top') ? overIndex : overIndex + 1;
+            newComponents.splice(insertIndex, 0, placeholder);
+        }
     }
-
-    if (isDroppingOnCanvas || isDroppingOnItem) {
-      const activeId = active.id as string;
-      const overIndex = components.findIndex(c => c.id === overId);
-
-      const newPlaceholder = {
-        id: `placeholder-${activeId}`,
-        type: 'placeholder',
-        props: { height: '60px' },
-      };
-
-      if (isDroppingOnCanvas) {
-        setComponents(current => [...current, newPlaceholder]);
-      } else if (overIndex !== -1) {
-        setComponents(current => [
-          ...current.slice(0, overIndex),
-          newPlaceholder,
-          ...current.slice(overIndex)
-        ]);
-      }
-    }
+    setComponents(newComponents);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
+    const { active } = event;
     setActiveId(null);
+    lastOverId.current = null;
 
-    // Remove placeholder on drag end
-    setComponents(current => current.filter(c => c.type !== 'placeholder'));
+    const placeholderIndex = components.findIndex(c => c.type === 'placeholder');
 
-    if (!over) return;
+    if (placeholderIndex === -1) {
+        setComponents(current => current.filter(c => c.type !== 'placeholder'));
+        return;
+    }
 
-    const isPaletteItem = active.data.current?.isPaletteItem;
+    const paletteComponent = availableComponents.find(c => c.id === active.id);
+    if (!paletteComponent) return;
 
-    if (isPaletteItem) {
-      const paletteComponent = availableComponents.find(c => c.id === active.id);
-      if (!paletteComponent) return;
-
-      const newComponent: Component = {
+    const newComponent = {
         id: generateUniqueId(),
         type: paletteComponent.id,
         props: paletteComponent.defaultProps || {},
-      };
+    };
 
-      let overIndex = components.findIndex(c => c.id === over.id);
-
-      // If dropping on canvas, add to the end.
-      if (over.id === 'canvas-drop-area') {
-        overIndex = components.length;
-      }
-
-      // If over.id is not found, overIndex will be -1, which is fine for insertion logic
-      setComponents(current => [
-        ...current.slice(0, overIndex),
-        newComponent,
-        ...current.slice(overIndex)
-      ].filter(c => c.type !== 'placeholder'));
-
-    } else {
-      // Reordering existing components
-      if (active.id !== over.id) {
-        setComponents((items) => {
-          const oldIndex = items.findIndex((item) => item.id === active.id);
-          const newIndex = items.findIndex((item) => item.id === over.id);
-          return arrayMove(items, oldIndex, newIndex);
-        });
-      }
-    }
+    setComponents(current => {
+        const newComponents = [...current];
+        newComponents.splice(placeholderIndex, 1, newComponent);
+        return newComponents;
+    });
   };
 
   const handleRemoveComponent = (idToRemove: string) => {
@@ -147,13 +121,10 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
 
   const handleEditComponent = (idToEdit: string) => {
     const component = components.find(c => c.id === idToEdit);
-    if (component) {
-      setEditingComponent(component);
-    }
+    setEditingComponent(component);
   };
 
   const handleUpdateComponent = (updatedProps: any) => {
-    if (!editingComponent) return;
     setComponents(items => items.map(item => {
         if (item.id === editingComponent.id) {
             return { ...item, props: updatedProps };
@@ -163,13 +134,18 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
     setEditingComponent(null);
   };
 
-  const handleSave = async () => {
-    const result = await saveInvitation(invitationId, components);
-    if (result) {
-      alert('Layout saved!');
-    } else {
-      alert('Error saving layout.');
-    }
+  const handleSave = () => {
+    fetch(`http://localhost:3001/api/invitations/${invitationId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ components }),
+    })
+    .then(res => res.json())
+    .then(() => alert('Layout saved!'))
+    .catch(err => {
+        console.error("Failed to save layout", err);
+        alert('Error saving layout.');
+    });
   };
 
   const handleExport = () => {
@@ -233,6 +209,13 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
             </DroppableCanvas>
           </div>
         </main>
+
+        <aside className="w-72 bg-white p-4 border-l flex-shrink-0">
+          <h2 className="text-lg font-semibold mb-4">Properties</h2>
+          <div className="text-center text-sm text-gray-500 mt-10">
+            <p>Click the settings icon on a component to edit its properties.</p>
+          </div>
+        </aside>
       </div>
 
       <PropertiesPanel
