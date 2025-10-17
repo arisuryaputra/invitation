@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -11,7 +11,6 @@ import {
   DragStartEvent,
   DragOverlay,
   DragOverEvent,
-  useDroppable,
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -22,11 +21,12 @@ import { Button } from '@/components/ui/button';
 import { SortableItem } from '@/components/editor/SortableItem';
 import { PaletteItem } from '@/components/editor/PaletteItem';
 import { PropertiesPanel } from '@/components/editor/PropertiesPanel';
+import { SectionComponent } from '@/components/editor/SectionComponent';
+import { ColumnComponent } from '@/components/editor/ColumnComponent';
 import { saveInvitation } from '@/services/invitation.service';
-import type { Invitation, Component } from '@/services/invitation.service';
+import type { Invitation, Section, Column, Component } from '@/services/invitation.service';
 
-// --- Constants defined outside the component to prevent re-creation on render ---
-const generateUniqueId = () => `comp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+const generateUniqueId = (prefix: 'sec' | 'col' | 'comp') => `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
 const getFutureDate = () => {
   const date = new Date();
@@ -34,7 +34,7 @@ const getFutureDate = () => {
   return date.toISOString();
 };
 
-const AVAILABLE_COMPONENTS = [
+const PALETTE_COMPONENTS = [
   { id: 'countdown', name: 'Countdown', defaultProps: { title: 'Countdown to Our Big Day!', targetDate: getFutureDate() } },
   { id: 'guest_book', name: 'Guest Book', defaultProps: {} },
   { id: 'gift_registry', name: 'Gift Registry', defaultProps: {} },
@@ -42,169 +42,187 @@ const AVAILABLE_COMPONENTS = [
   { id: 'music_player', name: 'Music Player', defaultProps: { songUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' } },
 ];
 
-const PLACEHOLDER_ID = 'placeholder';
-
-// --- Component ---
 export default function EditorClientPage({ initialData, invitationId }: { initialData: Invitation, invitationId: string }) {
-  const [components, setComponents] = useState<Component[]>(initialData.components);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [sections, setSections] = useState<Section[]>(initialData.sections);
+  const [activeItem, setActiveItem] = useState<any>(null);
   const [editingComponent, setEditingComponent] = useState<Component | null>(null);
-
-  const { setNodeRef } = useDroppable({ id: 'canvas' });
 
   const sensors = useSensors(useSensor(PointerSensor, {
     activationConstraint: { distance: 10 },
   }));
 
+  const items = useMemo(() => {
+    const allItems: { [key: string]: any } = {};
+    sections.forEach(section => {
+      allItems[section.id] = { ...section, type: 'Section' };
+      section.columns.forEach(column => {
+        allItems[column.id] = { ...column, type: 'Column', parent: section.id };
+        column.components.forEach(component => {
+          allItems[component.id] = { ...component, type: 'Component', parent: column.id };
+        });
+      });
+    });
+    return allItems;
+  }, [sections]);
+
   const handleDragStart = (event: DragStartEvent) => {
-    setActiveId(event.active.id as string);
-  };
-
-  const handleDragCancel = () => {
-    setComponents(c => c.filter(item => item.id !== PLACEHOLDER_ID));
-    setActiveId(null);
-  };
-
-  const handleDragOver = (event: DragOverEvent) => {
-    const { active, over } = event;
-
-    if (!over || !active.data.current?.isPaletteItem) {
-      return;
-    }
-
-    const isOverCanvas = over.id === 'canvas';
-    const isOverSortableItem = over.data.current?.isSortableItem;
-
-    if (!isOverCanvas && !isOverSortableItem) {
-      // Remove placeholder if dragged outside a valid drop zone
-      setComponents(c => c.filter(item => item.id !== PLACEHOLDER_ID));
-      return;
-    }
-
-    const placeholder: Component = { id: PLACEHOLDER_ID, type: 'placeholder', props: {} };
-    const overIndex = components.findIndex(c => c.id === over.id);
-    const placeholderIndex = components.findIndex(c => c.id === PLACEHOLDER_ID);
-
-    if (isOverCanvas && components.filter(c => c.type !== 'placeholder').length === 0) {
-      if (placeholderIndex === -1) {
-        setComponents([placeholder]);
-      }
-      return;
-    }
-
-    if (isOverSortableItem) {
-      let newIndex: number;
-      const overItemRect = over.rect;
-      const overItemCenterY = overItemRect.top + overItemRect.height / 2;
-
-      if (event.activatorEvent.clientY < overItemCenterY) {
-        newIndex = overIndex;
+      const { id, data } = event.active;
+      if (data.current?.isPaletteItem) {
+          setActiveItem({ id, type: 'PaletteItem', name: data.current.name });
       } else {
-        newIndex = overIndex + 1;
+          setActiveItem(items[id as string]);
       }
-
-      if (placeholderIndex === -1) {
-        const newComponents = [...components];
-        newComponents.splice(newIndex, 0, placeholder);
-        setComponents(newComponents);
-      } else {
-        if (placeholderIndex !== newIndex) {
-          setComponents(items => {
-            const newItems = items.filter(item => item.id !== PLACEHOLDER_ID);
-            newItems.splice(newIndex, 0, placeholder);
-            return newItems;
-          });
-        }
-      }
-    }
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    setActiveId(null);
+    setActiveItem(null);
 
-    // Always remove placeholder on drag end
-    let finalComponents = components.filter(c => c.id !== PLACEHOLDER_ID);
+    if (!over) return;
 
-    if (!over) {
-      setComponents(finalComponents);
-      return;
-    }
+    // Find the containers
+    const activeContainerId = active.data.current?.parent;
+    const overContainerId = over.data.current?.parent || over.id;
 
-    const isPaletteItem = active.data.current?.isPaletteItem;
+    // Handle dropping a new component from the palette
+    if (active.data.current?.isPaletteItem) {
+        if (over.data.current?.type === 'Column') {
+            const paletteComponent = PALETTE_COMPONENTS.find(c => c.id === active.id);
+            if (!paletteComponent) return;
 
-    if (isPaletteItem) {
-      const isDroppedOnCanvas = over.id === 'canvas' || over.data.current?.isSortableItem;
-      if (isDroppedOnCanvas) {
-        const paletteComponent = AVAILABLE_COMPONENTS.find(c => c.id === active.id);
-        if (!paletteComponent) return;
+            const newComponent: Component = {
+                id: generateUniqueId('comp'),
+                type: paletteComponent.id,
+                props: { ...paletteComponent.defaultProps },
+            };
 
-        const newComponent: Component = {
-          id: generateUniqueId(),
-          type: paletteComponent.id,
-          props: { ...paletteComponent.defaultProps },
-        };
-
-        const placeholderIndex = components.findIndex(c => c.id === PLACEHOLDER_ID);
-        if (placeholderIndex !== -1) {
-            finalComponents.splice(placeholderIndex, 0, newComponent);
-        } else {
-            // Fallback if dropped on canvas without a placeholder being present
-            finalComponents.push(newComponent);
+            setSections(prevSections => {
+                return prevSections.map(section => ({
+                    ...section,
+                    columns: section.columns.map(column => {
+                        if (column.id === overContainerId) {
+                            return { ...column, components: [...column.components, newComponent] };
+                        }
+                        return column;
+                    })
+                }));
+            });
         }
-        setComponents(finalComponents);
-      }
-    } else {
-      if (active.id !== over.id) {
-        const oldIndex = components.findIndex((item) => item.id === active.id);
-        const newIndex = components.findIndex((item) => item.id === over.id);
-        setComponents(arrayMove(components, oldIndex, newIndex));
-      }
+        return;
+    }
+
+    // Handle reordering items
+    if (active.id !== over.id) {
+        if (activeItem.type === 'Component' && over.data.current?.type === 'Component' && activeContainerId === overContainerId) {
+            // Reordering components within the same column
+            setSections(prevSections => {
+                return prevSections.map(s => ({
+                    ...s,
+                    columns: s.columns.map(c => {
+                        if (c.id === activeContainerId) {
+                            const oldIndex = c.components.findIndex(comp => comp.id === active.id);
+                            const newIndex = c.components.findIndex(comp => comp.id === over.id);
+                            return { ...c, components: arrayMove(c.components, oldIndex, newIndex) };
+                        }
+                        return c;
+                    })
+                }));
+            });
+        }
+        // Add more complex reordering logic for sections and columns here if needed
     }
   };
 
-  const handleRemoveComponent = (idToRemove: string) => {
-    setComponents((items) => items.filter(item => item.id !== idToRemove));
+  const handleAddSection = () => {
+    const newSection: Section = {
+      id: generateUniqueId('sec'),
+      columns: [{ id: generateUniqueId('col'), components: [] }],
+    };
+    setSections(current => [...current, newSection]);
   };
 
-  const handleEditComponent = (idToEdit: string) => {
-    const component = components.find(c => c.id === idToEdit);
-    if (component) setEditingComponent(component);
+  const handleRemoveSection = (sectionId: string) => {
+    setSections(current => current.filter(s => s.id !== sectionId));
+  };
+
+  const handleAddColumn = (sectionId: string) => {
+     setSections(current => current.map(s => {
+         if (s.id === sectionId) {
+             const newColumn: Column = { id: generateUniqueId('col'), components: [] };
+             return { ...s, columns: [...s.columns, newColumn] };
+         }
+         return s;
+     }));
+  };
+
+  const handleRemoveColumn = (columnId: string) => {
+      setSections(current => current.map(s => ({
+          ...s,
+          columns: s.columns.filter(c => c.id !== columnId)
+      })));
+  };
+
+  const handleRemoveComponent = (componentId: string) => {
+    setSections(current => current.map(s => ({
+        ...s,
+        columns: s.columns.map(c => ({
+            ...c,
+            components: c.components.filter(comp => comp.id !== componentId)
+        }))
+    })));
   };
 
   const handleUpdateComponent = (updatedProps: any) => {
     if (!editingComponent) return;
-    setComponents(items => items.map(item =>
-      item.id === editingComponent.id ? { ...item, props: updatedProps } : item
-    ));
+    setSections(items => items.map(s => ({
+        ...s,
+        columns: s.columns.map(c => ({
+            ...c,
+            components: c.components.map(comp =>
+                comp.id === editingComponent.id ? { ...comp, props: updatedProps } : comp
+            )
+        }))
+    })));
     setEditingComponent(null);
   };
 
   const handleSave = async () => {
-    const result = await saveInvitation(invitationId, components);
+    const result = await saveInvitation(invitationId, sections);
     if (result) alert('Layout saved!');
     else alert('Error saving layout.');
   };
 
-  const handleExport = () => {
-    const exportableComponents = components.filter(c => c.id !== PLACEHOLDER_ID);
-    const dataStr = JSON.stringify({ components: exportableComponents }, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-    const linkElement = document.createElement('a');
-    linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', `invitation-${invitationId}.json`);
-    linkElement.click();
-  };
+  // Render functions for nested sortable contexts
+  const renderComponent = (component: Component) => (
+    <SortableItem
+      key={component.id}
+      id={component.id}
+      componentData={component}
+      onRemove={handleRemoveComponent}
+      onEdit={() => setEditingComponent(component)}
+      onUpdate={(id, newProps) => handleUpdateComponent({ ...component, props: newProps })}
+    />
+  );
 
-  const activeItem = activeId ? (components.find(c => c.id === activeId) || AVAILABLE_COMPONENTS.find(c => c.id === activeId)) : null;
+  const renderColumn = (column: Column, sectionId: string) => (
+    <ColumnComponent
+      key={column.id}
+      column={column}
+      onRemoveColumn={() => handleRemoveColumn(column.id)}
+      renderComponent={renderComponent}
+    />
+  );
 
   return (
-    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="flex h-screen bg-gray-100 font-sans">
         <aside className="w-64 bg-white p-4 border-r overflow-y-auto flex-shrink-0">
-          <h2 className="text-lg font-semibold mb-4">Add Components</h2>
-          {AVAILABLE_COMPONENTS.map(comp => (
-            <PaletteItem key={comp.id} id={comp.id}>
+          <h2 className="text-lg font-semibold mb-4">Add Elements</h2>
+          <Button onClick={handleAddSection} className="w-full mb-4">Add Section</Button>
+          <hr className="my-4"/>
+          <h3 className="text-md font-semibold mb-2">Components</h3>
+          {PALETTE_COMPONENTS.map(comp => (
+            <PaletteItem key={comp.id} id={comp.id} name={comp.name}>
               {comp.name}
             </PaletteItem>
           ))}
@@ -214,33 +232,23 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-bold">Invitation Editor</h1>
             <div className="flex space-x-2">
-              <Button variant="outline" onClick={() => window.open(`/invitation/${invitationId}`, '_blank')}>Preview</Button>
-              <Button variant="outline" onClick={handleExport}>Export</Button>
-              <Button onClick={handleSave}>Save</Button>
+                <Button variant="outline" onClick={() => window.open(`/invitation/${invitationId}`, '_blank')}>Preview</Button>
+                <Button onClick={handleSave}>Save</Button>
             </div>
           </div>
 
-          <div className="max-w-3xl mx-auto bg-white p-4 rounded-lg shadow-lg">
-            <div ref={setNodeRef} id="canvas">
-              <SortableContext items={components.map(c => c.id)} strategy={verticalListSortingStrategy}>
-                  <div className="min-h-[400px] space-y-4">
-                    {components.map(component => (
-                      <SortableItem
-                        key={component.id}
-                        id={component.id}
-                        componentData={component}
-                        onRemove={handleRemoveComponent}
-                        onEdit={handleEditComponent}
-                      />
-                    ))}
-                    {components.filter(c => c.type !== 'music_player' && c.type !== 'placeholder').length === 0 && (
-                       <div className="text-center py-20 border-2 border-dashed rounded-lg flex items-center justify-center">
-                          <p className="text-muted-foreground">Drag components from the left panel and drop them here.</p>
-                       </div>
-                    )}
-                  </div>
-              </SortableContext>
-            </div>
+          <div className="max-w-4xl mx-auto bg-white p-4 rounded-lg shadow-lg">
+            <SortableContext items={sections.map(s => s.id)} strategy={verticalListSortingStrategy}>
+              {sections.map(section => (
+                <SectionComponent
+                  key={section.id}
+                  section={section}
+                  onRemoveSection={() => handleRemoveSection(section.id)}
+                  onAddColumn={() => handleAddColumn(section.id)}
+                  renderColumn={renderColumn}
+                />
+              ))}
+            </SortableContext>
           </div>
         </main>
       </div>
@@ -253,13 +261,8 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
       />
 
       <DragOverlay>
-        {activeId && activeItem ? (
-          'type' in activeItem ?
-            <SortableItem id={activeId} componentData={activeItem} onRemove={() => {}} onEdit={() => {}} />
-          :
-            <div className="p-2 border rounded-md bg-white shadow-lg cursor-grabbing">
-              {(activeItem as any).name}
-            </div>
+        {activeItem && activeItem.type === 'PaletteItem' ? (
+          <div className="p-2 border rounded-md bg-white shadow-lg cursor-grabbing">{activeItem.name}</div>
         ) : null}
       </DragOverlay>
     </DndContext>

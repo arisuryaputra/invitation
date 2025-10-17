@@ -2,30 +2,47 @@ import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
 
-// --- Paths and Interfaces ---
+// --- Paths ---
 const dbPath = path.join(__dirname, '..', '..', 'db');
 const templatesPath = path.join(dbPath, 'templates.json');
 const invitationsPath = path.join(dbPath, 'invitations.json');
 
+// --- Interfaces for the new nested structure ---
 export interface Component {
   id: string;
   type: string;
   props: any;
 }
 
-export interface Template {
+export interface Column {
   id: string;
-  name: string;
-  description: string;
-  defaultComponents: Omit<Component, 'id'>[];
+  components: Component[];
+}
+
+export interface Section {
+  id: string;
+  columns: Column[];
 }
 
 export interface Invitation {
   id: string;
   templateId: string;
   createdAt: string;
-  components: Component[];
+  sections: Section[]; // Changed from 'components' to 'sections'
 }
+
+export interface Template {
+  id: string;
+  name: string;
+  description: string;
+  // Templates will now also follow the Section > Column > Component structure
+  defaultSections: Omit<Section, 'id' | 'columns'> & {
+      columns: (Omit<Column, 'id' | 'components'> & {
+          components: Omit<Component, 'id'>[];
+      })[];
+  }[];
+}
+
 
 // --- Data Access Functions ---
 const readData = async <T>(filePath: string): Promise<T[]> => {
@@ -42,18 +59,34 @@ const writeData = async <T>(filePath: string, data: T[]): Promise<void> => {
   await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
 };
 
+// --- Helper to generate nested IDs ---
+const generateNestedIds = (sections: any[]): Section[] => {
+    return sections.map(section => ({
+        ...section,
+        id: `sec-${crypto.randomUUID()}`,
+        columns: section.columns.map((column: any) => ({
+            ...column,
+            id: `col-${crypto.randomUUID()}`,
+            components: column.components.map((component: any) => ({
+                ...component,
+                id: `comp-${crypto.randomUUID()}`
+            }))
+        }))
+    }));
+};
+
+
 // --- Service Functions ---
 
 export const getTemplates = async (): Promise<Template[]> => {
   return readData<Template>(templatesPath);
 };
 
-export const createNewInvitation = async (templateId?: string, importedComponents?: any[]): Promise<Invitation> => {
+export const createNewInvitation = async (templateId?: string, importedSections?: any[]): Promise<Invitation> => {
   const invitations = await readData<Invitation>(invitationsPath);
   let newInvitation: Invitation;
 
   if (templateId) {
-    // Create from template
     const templates = await getTemplates();
     const template = templates.find(t => t.id === templateId);
     if (!template) {
@@ -63,33 +96,28 @@ export const createNewInvitation = async (templateId?: string, importedComponent
       id: `inv-${crypto.randomUUID()}`,
       templateId: template.id,
       createdAt: new Date().toISOString(),
-      components: template.defaultComponents.map((c: any) => {
-        const newComp = { ...c, id: `comp-${crypto.randomUUID()}` };
-        // Specifically add a default targetDate for countdowns if not present
-        if (newComp.type === 'countdown' && !newComp.props.targetDate) {
-          const futureDate = new Date();
-          futureDate.setDate(futureDate.getDate() + 30);
-          newComp.props.targetDate = futureDate.toISOString();
-        }
-        return newComp;
-      }),
+      sections: generateNestedIds(template.defaultSections),
     };
-  } else if (importedComponents) {
-    // Create from imported JSON
+  } else if (importedSections) {
     newInvitation = {
       id: `inv-${crypto.randomUUID()}`,
       templateId: 'custom',
       createdAt: new Date().toISOString(),
-      // Assign new unique IDs to imported components
-      components: importedComponents.map((c: any) => ({ ...c, id: `comp-${crypto.randomUUID()}` })),
+      sections: generateNestedIds(importedSections),
     };
   } else {
-    // Create a blank invitation
+    // Create a blank invitation with one empty section and column
     newInvitation = {
       id: `inv-${crypto.randomUUID()}`,
       templateId: 'blank',
       createdAt: new Date().toISOString(),
-      components: [],
+      sections: [{
+          id: `sec-${crypto.randomUUID()}`,
+          columns: [{
+              id: `col-${crypto.randomUUID()}`,
+              components: []
+          }]
+      }],
     };
   }
 
@@ -111,15 +139,9 @@ export const updateInvitationById = async (id: string, updatedData: Partial<Invi
     return null; // Not found
   }
 
-  const updatedInvitation = {
-    ...invitations[index],
-    ...updatedData,
-    id: invitations[index].id, // Ensure ID is not overwritten
-    createdAt: invitations[index].createdAt, // Ensure createdAt is not overwritten
-  };
-
-  invitations[index] = updatedInvitation;
+  // Only update the 'sections' property
+  invitations[index].sections = updatedData.sections || invitations[index].sections;
 
   await writeData(invitationsPath, invitations);
-  return updatedInvitation;
+  return invitations[index];
 };

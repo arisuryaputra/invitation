@@ -3,22 +3,66 @@
     "id": "tmpl-wedding-classic",
     "name": "Classic Wedding",
     "description": "A timeless and elegant template for weddings.",
-    "defaultComponents": [
-      { "type": "countdown", "props": { "title": "Countdown to Our Wedding" } },
-      { "type": "guest_book", "props": {} },
-      { "type": "gift_registry", "props": {} },
-      { "type": "image_gallery", "props": { "images": [] } },
-      { "type": "music_player", "props": { "songUrl": "" } }
+    "defaultSections": [
+      {
+        "columns": [
+          {
+            "components": [
+              { "type": "countdown", "props": { "title": "Countdown to Our Wedding" } },
+              { "type": "guest_book", "props": {} }
+            ]
+          }
+        ]
+      },
+      {
+        "columns": [
+          {
+            "components": [
+              { "type": "gift_registry", "props": {} }
+            ]
+          },
+          {
+            "components": [
+              { "type": "image_gallery", "props": { "images": [] } }
+            ]
+          }
+        ]
+      },
+      {
+        "columns": [
+          {
+            "components": [
+              { "type": "music_player", "props": { "songUrl": "" } }
+            ]
+          }
+        ]
+      }
     ]
   },
   {
     "id": "tmpl-birthday-modern",
     "name": "Modern Birthday Bash",
     "description": "A fun and modern template for birthday parties.",
-    "defaultComponents": [
-      { "type": "countdown", "props": { "title": "Countdown to the Party!" } },
-      { "type": "guest_book", "props": {} },
-      { "type": "music_player", "props": { "songUrl": "" } }
+    "defaultSections": [
+      {
+        "columns": [
+          {
+            "components": [
+              { "type": "countdown", "props": { "title": "Countdown to the Party!" } },
+              { "type": "music_player", "props": { "songUrl": "" } }
+            ]
+          }
+        ]
+      },
+      {
+        "columns": [
+          {
+            "components": [
+               { "type": "guest_book", "props": {} }
+            ]
+          }
+        ]
+      }
     ]
   }
 ]

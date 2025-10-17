@@ -1,15 +1,25 @@
-// --- Shared Interfaces ---
+// --- Shared Interfaces for a Nested Structure ---
 export interface Component {
   id: string;
   type: string;
   props: any;
 }
 
+export interface Column {
+  id: string;
+  components: Component[];
+}
+
+export interface Section {
+  id: string;
+  columns: Column[];
+}
+
 export interface Invitation {
   id: string;
   templateId: string;
   createdAt: string;
-  components: Component[];
+  sections: Section[];
 }
 
 export interface Template {
@@ -18,18 +28,16 @@ export interface Template {
   description: string;
 }
 
+
 // --- API Service Functions ---
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
 export const getInvitationById = async (id: string): Promise<Invitation | null> => {
   try {
     const res = await fetch(`${API_URL}/invitations/${id}`, {
-      cache: 'no-store', // Always fetch fresh data for the editor
+      cache: 'no-store',
     });
-    if (!res.ok) {
-      console.error(`Failed to fetch invitation: ${res.status}`);
-      return null;
-    }
+    if (!res.ok) return null;
     return res.json();
   } catch (error) {
     console.error('Failed to fetch invitation:', error);
@@ -40,9 +48,7 @@ export const getInvitationById = async (id: string): Promise<Invitation | null> 
 export const getTemplates = async (): Promise<Template[]> => {
     try {
         const res = await fetch(`${API_URL}/templates`);
-        if (!res.ok) {
-            return [];
-        }
+        if (!res.ok) return [];
         return res.json();
     } catch (error) {
         console.error('Failed to fetch templates:', error);
@@ -57,9 +63,7 @@ export const createInvitation = async (body: object): Promise<Invitation | null>
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
         });
-        if (!res.ok) {
-            return null;
-        }
+        if (!res.ok) return null;
         return res.json();
     } catch (error) {
         console.error('Failed to create invitation:', error);
@@ -67,16 +71,14 @@ export const createInvitation = async (body: object): Promise<Invitation | null>
     }
 };
 
-export const saveInvitation = async (id: string, components: Component[]): Promise<Invitation | null> => {
+export const saveInvitation = async (id: string, sections: Section[]): Promise<Invitation | null> => {
     try {
         const res = await fetch(`${API_URL}/invitations/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ components }),
+            body: JSON.stringify({ sections }), // Send the entire sections array
         });
-        if (!res.ok) {
-            return null;
-        }
+        if (!res.ok) return null;
         return res.json();
     } catch (error) {
         console.error('Failed to save invitation:', error);

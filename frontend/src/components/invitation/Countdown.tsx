@@ -2,14 +2,19 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 
 interface CountdownProps {
   targetDate?: string;
   title: string;
+  isEditing?: boolean;
+  onTitleChange?: (newTitle: string) => void;
 }
 
-const Countdown: React.FC<CountdownProps> = ({ targetDate, title }) => {
+const Countdown: React.FC<CountdownProps> = ({ targetDate, title, isEditing = false, onTitleChange }) => {
   const [isMounted, setIsMounted] = useState(false);
+  const [isInlineEditing, setIsInlineEditing] = useState(false);
+  const [editableTitle, setEditableTitle] = useState(title);
 
   const calculateTimeLeft = () => {
     const futureDate = new Date();
@@ -39,7 +44,51 @@ const Countdown: React.FC<CountdownProps> = ({ targetDate, title }) => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [targetDate]); // Recalculate if targetDate changes
+  }, [targetDate]);
+
+  useEffect(() => {
+    setEditableTitle(title);
+  }, [title]);
+
+  const handleTitleDoubleClick = () => {
+    if (isEditing) {
+      setIsInlineEditing(true);
+    }
+  };
+
+  const handleTitleBlur = () => {
+    setIsInlineEditing(false);
+    if (onTitleChange) {
+      onTitleChange(editableTitle);
+    }
+  };
+
+  const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleTitleBlur();
+    }
+  };
+
+  const renderTitle = () => {
+    if (isInlineEditing) {
+      return (
+        <Input
+          type="text"
+          value={editableTitle}
+          onChange={(e) => setEditableTitle(e.target.value)}
+          onBlur={handleTitleBlur}
+          onKeyDown={handleTitleKeyDown}
+          className="text-center text-2xl font-bold bg-transparent"
+          autoFocus
+        />
+      );
+    }
+    return (
+      <CardTitle onDoubleClick={handleTitleDoubleClick} className="text-center cursor-pointer">
+        {title}
+      </CardTitle>
+    );
+  };
 
   if (!isMounted) {
     // Render a placeholder on the server and initial client render
@@ -50,6 +99,7 @@ const Countdown: React.FC<CountdownProps> = ({ targetDate, title }) => {
         </CardHeader>
         <CardContent>
           <div className="flex justify-center space-x-4 md:space-x-8">
+             {/* Static placeholder to prevent hydration mismatch */}
              <div className="text-center"><div className="text-4xl font-bold">00</div><div className="text-sm uppercase text-muted-foreground">Days</div></div>
              <div className="text-center"><div className="text-4xl font-bold">00</div><div className="text-sm uppercase text-muted-foreground">Hours</div></div>
              <div className="text-center"><div className="text-4xl font-bold">00</div><div className="text-sm uppercase text-muted-foreground">Minutes</div></div>
@@ -75,7 +125,7 @@ const Countdown: React.FC<CountdownProps> = ({ targetDate, title }) => {
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
-        <CardTitle className="text-center">{title}</CardTitle>
+        {renderTitle()}
       </CardHeader>
       <CardContent>
         <div className="flex justify-center space-x-4 md:space-x-8">
