@@ -7,3 +7,4 @@
 [33m[nodemon] watching path(s): src/**/*[39m
 [33m[nodemon] watching extensions: ts,json[39m
 [32m[nodemon] starting `ts-node ./src/index.ts`[39m
+Backend server listening at http://localhost:3001

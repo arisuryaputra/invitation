@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -42,20 +42,15 @@ const AVAILABLE_COMPONENTS = [
   { id: 'music_player', name: 'Music Player', defaultProps: { songUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' } },
 ];
 
-function DroppableCanvas({ children }: { children: React.ReactNode }) {
-    const { setNodeRef } = useDroppable({ id: 'canvas' });
-    return (
-        <div ref={setNodeRef} className="min-h-[400px] space-y-4" id="canvas">
-            {children}
-        </div>
-    );
-}
+const PLACEHOLDER_ID = 'placeholder';
 
 // --- Component ---
 export default function EditorClientPage({ initialData, invitationId }: { initialData: Invitation, invitationId: string }) {
   const [components, setComponents] = useState<Component[]>(initialData.components);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [editingComponent, setEditingComponent] = useState<Component | null>(null);
+
+  const { setNodeRef } = useDroppable({ id: 'canvas' });
 
   const sensors = useSensors(useSensor(PointerSensor, {
     activationConstraint: { distance: 10 },
@@ -65,85 +60,105 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
     setActiveId(event.active.id as string);
   };
 
+  const handleDragCancel = () => {
+    setComponents(c => c.filter(item => item.id !== PLACEHOLDER_ID));
+    setActiveId(null);
+  };
+
   const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
-    if (!over || !active.data.current?.isPaletteItem) return;
+
+    if (!over || !active.data.current?.isPaletteItem) {
+      return;
+    }
 
     const isOverCanvas = over.id === 'canvas';
     const isOverSortableItem = over.data.current?.isSortableItem;
 
-    if (isOverCanvas || isOverSortableItem) {
-        const overIndex = components.findIndex(c => c.id === over.id);
-        const isPlaceholderPresent = components.some(c => c.id === 'placeholder');
+    if (!isOverCanvas && !isOverSortableItem) {
+      // Remove placeholder if dragged outside a valid drop zone
+      setComponents(c => c.filter(item => item.id !== PLACEHOLDER_ID));
+      return;
+    }
 
-        if (!isPlaceholderPresent) {
-            const placeholder: Component = { id: 'placeholder', type: 'placeholder', props: {} };
-            let newComponents = [...components];
-            if (overIndex !== -1) {
-                newComponents.splice(overIndex, 0, placeholder);
-            } else {
-                newComponents.push(placeholder);
-            }
-            setComponents(newComponents);
-        } else {
-            const placeholderIndex = components.findIndex(c => c.id === 'placeholder');
-            if (placeholderIndex !== overIndex) {
-                 setComponents(current => {
-                    const newItems = current.filter(c => c.id !== 'placeholder');
-                    const newOverIndex = newItems.findIndex(c => c.id === over.id);
-                    if(newOverIndex !== -1) {
-                        newItems.splice(newOverIndex, 0, { id: 'placeholder', type: 'placeholder', props: {} });
-                        return newItems;
-                    } else {
-                        // if overIndex is -1, it means we are over the canvas, not an item
-                        newItems.push({ id: 'placeholder', type: 'placeholder', props: {} });
-                        return newItems;
-                    }
-                 });
-            }
+    const placeholder: Component = { id: PLACEHOLDER_ID, type: 'placeholder', props: {} };
+    const overIndex = components.findIndex(c => c.id === over.id);
+    const placeholderIndex = components.findIndex(c => c.id === PLACEHOLDER_ID);
+
+    if (isOverCanvas && components.filter(c => c.type !== 'placeholder').length === 0) {
+      if (placeholderIndex === -1) {
+        setComponents([placeholder]);
+      }
+      return;
+    }
+
+    if (isOverSortableItem) {
+      let newIndex: number;
+      const overItemRect = over.rect;
+      const overItemCenterY = overItemRect.top + overItemRect.height / 2;
+
+      if (event.activatorEvent.clientY < overItemCenterY) {
+        newIndex = overIndex;
+      } else {
+        newIndex = overIndex + 1;
+      }
+
+      if (placeholderIndex === -1) {
+        const newComponents = [...components];
+        newComponents.splice(newIndex, 0, placeholder);
+        setComponents(newComponents);
+      } else {
+        if (placeholderIndex !== newIndex) {
+          setComponents(items => {
+            const newItems = items.filter(item => item.id !== PLACEHOLDER_ID);
+            newItems.splice(newIndex, 0, placeholder);
+            return newItems;
+          });
         }
+      }
     }
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-
-    // Remove placeholder on drag end
-    setComponents(current => current.filter(c => c.id !== 'placeholder'));
     setActiveId(null);
 
-    if (!over) return;
+    // Always remove placeholder on drag end
+    let finalComponents = components.filter(c => c.id !== PLACEHOLDER_ID);
+
+    if (!over) {
+      setComponents(finalComponents);
+      return;
+    }
 
     const isPaletteItem = active.data.current?.isPaletteItem;
 
     if (isPaletteItem) {
-      const paletteComponent = AVAILABLE_COMPONENTS.find(c => c.id === active.id);
-      if (!paletteComponent) return;
+      const isDroppedOnCanvas = over.id === 'canvas' || over.data.current?.isSortableItem;
+      if (isDroppedOnCanvas) {
+        const paletteComponent = AVAILABLE_COMPONENTS.find(c => c.id === active.id);
+        if (!paletteComponent) return;
 
-      const newComponent: Component = {
-        id: generateUniqueId(),
-        type: paletteComponent.id,
-        props: { ...paletteComponent.defaultProps },
-      };
+        const newComponent: Component = {
+          id: generateUniqueId(),
+          type: paletteComponent.id,
+          props: { ...paletteComponent.defaultProps },
+        };
 
-      setComponents(current => {
-        // We need to find the index where the placeholder *was*
-        const overIndex = current.findIndex(c => c.id === over.id);
-        if (overIndex !== -1) {
-          const newItems = [...current];
-          newItems.splice(overIndex, 0, newComponent);
-          return newItems;
+        const placeholderIndex = components.findIndex(c => c.id === PLACEHOLDER_ID);
+        if (placeholderIndex !== -1) {
+            finalComponents.splice(placeholderIndex, 0, newComponent);
+        } else {
+            // Fallback if dropped on canvas without a placeholder being present
+            finalComponents.push(newComponent);
         }
-        return [...current, newComponent]; // Add to end if dropped on main canvas area
-      });
+        setComponents(finalComponents);
+      }
     } else {
-      // Reorder existing components
       if (active.id !== over.id) {
-        setComponents((items) => {
-          const oldIndex = items.findIndex((item) => item.id === active.id);
-          const newIndex = items.findIndex((item) => item.id === over.id);
-          return arrayMove(items, oldIndex, newIndex);
-        });
+        const oldIndex = components.findIndex((item) => item.id === active.id);
+        const newIndex = components.findIndex((item) => item.id === over.id);
+        setComponents(arrayMove(components, oldIndex, newIndex));
       }
     }
   };
@@ -172,7 +187,8 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
   };
 
   const handleExport = () => {
-    const dataStr = JSON.stringify({ components }, null, 2);
+    const exportableComponents = components.filter(c => c.id !== PLACEHOLDER_ID);
+    const dataStr = JSON.stringify({ components: exportableComponents }, null, 2);
     const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
     const linkElement = document.createElement('a');
     linkElement.setAttribute('href', dataUri);
@@ -180,10 +196,10 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
     linkElement.click();
   };
 
-  const activeItem = activeId ? components.find(c => c.id === activeId) || AVAILABLE_COMPONENTS.find(c => c.id === activeId) : null;
+  const activeItem = activeId ? (components.find(c => c.id === activeId) || AVAILABLE_COMPONENTS.find(c => c.id === activeId)) : null;
 
   return (
-    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd} collisionDetection={closestCenter}>
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
       <div className="flex h-screen bg-gray-100 font-sans">
         <aside className="w-64 bg-white p-4 border-r overflow-y-auto flex-shrink-0">
           <h2 className="text-lg font-semibold mb-4">Add Components</h2>
@@ -205,24 +221,26 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
           </div>
 
           <div className="max-w-3xl mx-auto bg-white p-4 rounded-lg shadow-lg">
-            <DroppableCanvas>
+            <div ref={setNodeRef} id="canvas">
               <SortableContext items={components.map(c => c.id)} strategy={verticalListSortingStrategy}>
-                  {components.map(component => (
-                    <SortableItem
-                      key={component.id}
-                      id={component.id}
-                      componentData={component}
-                      onRemove={handleRemoveComponent}
-                      onEdit={handleEditComponent}
-                    />
-                  ))}
-                  {components.filter(c => c.type !== 'music_player' && c.type !== 'placeholder').length === 0 && (
-                     <div className="text-center py-20 border-2 border-dashed rounded-lg flex items-center justify-center">
-                        <p className="text-muted-foreground">Drag components from the left panel and drop them here.</p>
-                     </div>
-                  )}
+                  <div className="min-h-[400px] space-y-4">
+                    {components.map(component => (
+                      <SortableItem
+                        key={component.id}
+                        id={component.id}
+                        componentData={component}
+                        onRemove={handleRemoveComponent}
+                        onEdit={handleEditComponent}
+                      />
+                    ))}
+                    {components.filter(c => c.type !== 'music_player' && c.type !== 'placeholder').length === 0 && (
+                       <div className="text-center py-20 border-2 border-dashed rounded-lg flex items-center justify-center">
+                          <p className="text-muted-foreground">Drag components from the left panel and drop them here.</p>
+                       </div>
+                    )}
+                  </div>
               </SortableContext>
-            </DroppableCanvas>
+            </div>
           </div>
         </main>
       </div>
@@ -236,13 +254,12 @@ export default function EditorClientPage({ initialData, invitationId }: { initia
 
       <DragOverlay>
         {activeId && activeItem ? (
-          activeItem.type ? (
+          'type' in activeItem ?
             <SortableItem id={activeId} componentData={activeItem} onRemove={() => {}} onEdit={() => {}} />
-          ) : (
+          :
             <div className="p-2 border rounded-md bg-white shadow-lg cursor-grabbing">
-              {activeItem.name}
+              {(activeItem as any).name}
             </div>
-          )
         ) : null}
       </DragOverlay>
     </DndContext>
